@@ -3,8 +3,9 @@
     <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="0"/>
     <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
         <group>
-            <file>file:/C:/ProyectosJava/Instagram/src/instagram/Usuario.java</file>
-            <file>file:/C:/ProyectosJava/Instagram/src/instagram/Sistema.java</file>
+            <file>file:/C:/ProyectosJava/Instagram/src/instagram/Main.java</file>
+            <file>file:/C:/ProyectosJava/Instagram/src/gui/VentanaPrincipal.java</file>
+            <file>file:/C:/ProyectosJava/Instagram/src/interfaces/ConfiguracionVisual.java</file>
         </group>
     </open-files>
 </project-private>

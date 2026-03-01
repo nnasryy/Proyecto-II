@@ -1,9 +1,10 @@
-package gui; // Asegúrate que coincida con tu paquete
+package gui;
 
 import enums.ModoVista;
 import instagram.Sistema;
 import interfaces.ConfiguracionVisual;
 import javax.swing.*;
+import javax.swing.border.LineBorder; // Import estándar para bordes
 import java.awt.*;
 
 public class VentanaPrincipal extends JFrame {
@@ -11,120 +12,101 @@ public class VentanaPrincipal extends JFrame {
     private Sistema sistema;
     private ModoVista modoActual;
 
-    // ------------------------------------------------------
-    // MAIN PARA PRUEBAS RÁPIDAS (Ejecuta esto para ver la ventana)
-    // ------------------------------------------------------
+    // COLORES
+    private final Color COLOR_FONDO = Color.WHITE;
+    private final Color COLOR_BOTTON = new Color(64, 155, 230); // Azul claro
+    private final Color COLOR_FIELD = new Color(242, 247, 247); //Gris Text Field
+    private final Color COLOR_FONT = new Color(143, 140, 140); //Gris Oscuro Text Field
+    
+    
     public static void main(String[] args) {
-        // Esto permite que la ventana se vea moderna (opcional)
-        try { 
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); 
-        } catch (Exception e) {}
-
-        // Creamos una instancia para visualizar
-        // Pasamos 'null' al sistema solo para esta prueba visual
+        try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception e) {}
         VentanaPrincipal ventana = new VentanaPrincipal(null);
         ventana.setVisible(true);
     }
 
-    // ------------------------------------------------------
-    // CONSTRUCTOR
-    // ------------------------------------------------------
     public VentanaPrincipal(Sistema sistema) {
         this.sistema = sistema;
-
-        // --- AQUÍ CAMBIAS EL MODO PARA PROBAR ---
-        // Cambia esto a ModoVista.DESKTOP para ver la versión grande
-        this.modoActual = ModoVista.MOBILE; 
-
-        // Configuración Básica
+        this.modoActual = ModoVista.MOBILE; // Cambiar a DESKTOP para probar
         configurarVentana();
-        
-        // Iniciar componentes (Login por ahora)
         inicializarComponentesLogin();
     }
 
     private void configurarVentana() {
-        // Obtenemos dimensiones de tu interfaz ConfiguracionVisual
-        int ancho = ConfiguracionVisual.getAncho(modoActual);
-        int alto = ConfiguracionVisual.getAlto(modoActual);
-
+        setSize(ConfiguracionVisual.getAncho(modoActual), ConfiguracionVisual.getAlto(modoActual));
         setTitle("InstaRAIZ - " + modoActual);
-        setSize(ancho, alto);
-        setLocationRelativeTo(null); // Centrar en pantalla
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        
-        // IMPORTANTE: Esto permite usar coordenadas exactas (x,y)
-        setLayout(null); 
-        setResizable(false); // Para que el usuario no estire la ventana
+        setLocationRelativeTo(null);
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setLayout(null);
+        setResizable(false);
     }
 
     private void inicializarComponentesLogin() {
-        
-        // LIMPIAMOS LA VENTANA (por si venimos de otra pantalla)
         getContentPane().removeAll();
+        getContentPane().setBackground(COLOR_FONDO);
 
-        // --- Lógica de Colores (Simulando Instagram) ---
-        Color colorFondo = (modoActual == ModoVista.MOBILE) ? Color.WHITE : new Color(250, 250, 250);
-        Color colorTexto = (modoActual == ModoVista.MOBILE) ? Color.BLACK : Color.BLACK;
-        getContentPane().setBackground(colorFondo);
-
-        // --- Componentes ---
-        JLabel lblTitulo = new JLabel("INSTAGRAM", SwingConstants.CENTER);
-        lblTitulo.setFont(new Font("SansSerif", Font.BOLD, 24));
-        lblTitulo.setForeground(colorTexto);
-        
-        JTextField txtUser = new JTextField();
-        txtUser.setToolTipText("Username");
-        
-        JPasswordField txtPass = new JPasswordField();
-        txtPass.setToolTipText("Password");
-
-        JButton btnLogin = new JButton("Iniciar Sesión");
-        JButton btnRegistro = new JButton("Registrar");
-
-        // --- POSICIONAMIENTO (Coordenadas) ---
-        
-        if (modoActual == ModoVista.MOBILE) {
-            // DISEÑO MÓVIL (390x844)
-            // Centrado horizontal: (390 - 280) / 2 = 55 aprox
+        // --- LOGO ---
+        JLabel lblLogo = new JLabel();
+        try {
+            ImageIcon icono = new ImageIcon(getClass().getResource("/images/instagramlogoblack.png"));
             
-            lblTitulo.setBounds(55, 200, 280, 50);
-            txtUser.setBounds(55, 300, 280, 40); // x, y, ancho, alto
-            txtPass.setBounds(55, 350, 280, 40);
-            btnLogin.setBounds(55, 410, 280, 40);
-            btnRegistro.setBounds(55, 470, 280, 40);
-            
-        } else {
-            // DISEÑO DESKTOP (1366x768)
-            // Centrado horizontal: (1366 - 300) / 2 = 533 aprox
-            
-            lblTitulo.setBounds(533, 200, 300, 50);
-            txtUser.setBounds(533, 300, 300, 40);
-            txtPass.setBounds(533, 360, 300, 40);
-            btnLogin.setBounds(533, 430, 300, 40);
-            btnRegistro.setBounds(533, 490, 300, 40);
+            Image img = icono.getImage().getScaledInstance(280, 158, Image.SCALE_SMOOTH);
+            lblLogo.setIcon(new ImageIcon(img));
+        } catch (Exception e) {
+            lblLogo.setText("INSTAGRAM");
         }
 
-        // AGREGAR COMPONENTES A LA VENTANA
-        add(lblTitulo);
+        JTextField txtUser = new JTextField();
+        txtUser.setBackground(COLOR_FIELD);
+        txtUser.setFont(new Font("Arial", Font.PLAIN, 14));
+        txtUser.setForeground(COLOR_FONT);
+
+        JPasswordField txtPass = new JPasswordField();
+        txtPass.setBackground(COLOR_FIELD);
+        txtPass.setFont(new Font("Arial", Font.PLAIN, 14));
+        txtPass.setForeground(COLOR_FONT);
+
+        // --- BOTONES ---
+        JButton btnLogin = new JButton("Iniciar Sesión");
+        btnLogin.setBackground(COLOR_BOTTON);
+        btnLogin.setForeground(Color.WHITE);
+        btnLogin.setFont(new Font("Arial", Font.BOLD, 14));
+
+        JButton btnRegistro = new JButton("Registrar");
+        btnRegistro.setBackground(COLOR_BOTTON);
+        btnRegistro.setForeground(Color.WHITE);
+        btnRegistro.setFont(new Font("Arial", Font.BOLD, 14));
+
+        // --- POSICIONAMIENTO ---
+        int anchoVentana = getWidth();
+        int anchoInputs = 280;
+        int anchoLogo = 280;
+        int xInputs = (anchoVentana - anchoInputs) / 2;
+        int xLogo = (anchoVentana - anchoLogo) / 2;
+
+        if (modoActual == ModoVista.MOBILE) {
+            lblLogo.setBounds(xLogo, 80, anchoLogo, 217);
+            txtUser.setBounds(xInputs, 350, anchoInputs, 40);
+            txtPass.setBounds(xInputs, 410, anchoInputs, 40);
+            btnLogin.setBounds(xInputs, 480, anchoInputs, 40);
+            btnRegistro.setBounds(xInputs, 540, anchoInputs, 40);
+        } else {
+            lblLogo.setBounds(xLogo, 100, anchoLogo, 217);
+            txtUser.setBounds(xInputs, 350, anchoInputs, 40);
+            txtPass.setBounds(xInputs, 420, anchoInputs, 40);
+            btnLogin.setBounds(xInputs, 500, anchoInputs, 40);
+            btnRegistro.setBounds(xInputs, 560, anchoInputs, 40);
+        }
+
+        add(lblLogo);
         add(txtUser);
         add(txtPass);
         add(btnLogin);
         add(btnRegistro);
 
-        // --- ACCIONES (Eventos) ---
-        btnLogin.addActionListener(e -> {
-            if(sistema == null) {
-                JOptionPane.showMessageDialog(this, "Modo prueba visual (Sistema no conectado)");
-                return;
-            }
-            // Aquí iría la lógica real
-            String user = txtUser.getText();
-            String pass = new String(txtPass.getPassword());
-            // sistema.login(user, pass);
-        });
-
-        // Refrescar la pantalla
+        // Eventos simples
+        btnLogin.addActionListener(e -> JOptionPane.showMessageDialog(this, "Login"));
+        
         revalidate();
         repaint();
     }
