@@ -4,10 +4,24 @@
  */
 package instagram;
 
+import enums.EstadoCuenta;
+import enums.TipoCuenta;
+
 /**
  *
  * @author nasry
  */
 public class Usuario {
+    private String username;
+    private String password;
+    private TipoCuenta tipoCuenta;
+    private EstadoCuenta estadoCuenta;
+    
+    public Usuario(String username, String password, TipoCuenta tipoCuenta, EstadoCuenta estadoCuenta){
+    this.username = username;
+    this.password = password;
+    this.tipoCuenta = tipoCuenta;
+    this.estadoCuenta = estadoCuenta;
+    }
     
 }
