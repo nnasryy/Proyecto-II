@@ -9,6 +9,6 @@ package enums;
  * @author nasry
  */
 public enum EstadoCuenta {
-    ACTIVA,
-    DESACTIVA;
+    ACTIVO,
+    DESACTIVADO;
 }

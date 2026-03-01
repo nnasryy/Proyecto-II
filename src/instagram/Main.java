@@ -4,6 +4,8 @@
  */
 package instagram;
 
+import gui.VentanaPrincipal;
+
 /**
  *
  * @author nasry
@@ -14,7 +16,9 @@ public class Main {
      * @param args the command line arguments
      */
     public static void main(String[] args) {
-        // TODO code application logic here
+        Sistema sistema = new Sistema();
+        VentanaPrincipal ventana = new VentanaPrincipal(sistema);
+        ventana.setVisible(true);
     }
-    
+
 }
