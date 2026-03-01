@@ -8,7 +8,7 @@ package instagram;
  *
  * @author nasry
  */
-public class Instagram {
+public class Main {
 
     /**
      * @param args the command line arguments
