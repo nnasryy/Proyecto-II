@@ -18,7 +18,9 @@ public class VentanaPrincipal extends JFrame {
     private final Color COLOR_FONT = new Color(143, 140, 140);
     private final Color COLOR_PLACEHOLDER = new Color(180, 180, 180);
 
- 
+    // --- ATRIBUTOS PARA LOS ICONOS (SOLUCIÓN AL ERROR) ---
+    private ImageIcon iconEyeClosed;
+    private ImageIcon iconEyeOpen;
 
     public VentanaPrincipal(Sistema sistema) {
         this.sistema = sistema;
@@ -87,27 +89,26 @@ public class VentanaPrincipal extends JFrame {
         JLabel btnEye = new JLabel();
         btnEye.setCursor(new Cursor(Cursor.HAND_CURSOR));
         
-        // --- AQUÍ PUEDES AÑADIR TUS PNGs ---
-        // Si tienes las imágenes, descomenta este bloque y comenta el bloque del emoji abajo:
-        /*
+        // CARGAR ICONOS (Usando los atributos de la clase)
         try {
-            ImageIcon iconoCerrar = new ImageIcon(getClass().getResource("/images/eye_closed.png")); // Tu imagen ojo cerrado
-            ImageIcon iconoAbrir = new ImageIcon(getClass().getResource("/images/eye_open.png"));   // Tu imagen ojo abierto
+            ImageIcon rawClosed = new ImageIcon(getClass().getResource("/images/ojocerrado.png"));
+            ImageIcon rawOpen = new ImageIcon(getClass().getResource("/images/ojo.png"));
             
-            // Escalarlas a un tamaño pequeño (ej 20x20)
-            Image imgCerrar = iconoCerrar.getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH);
-            Image imgAbrir = iconoAbrir.getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH);
+            // Escalar y guardar en los atributos de la clase
+            Image imgC = rawClosed.getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH);
+            Image imgO = rawOpen.getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH);
+            
+            iconEyeClosed = new ImageIcon(imgC);
+            iconEyeOpen = new ImageIcon(imgO);
             
             // Asignar icono inicial
-            btnEye.setIcon(new ImageIcon(imgCerrar)); 
+            btnEye.setIcon(iconEyeClosed); 
+            
         } catch (Exception e) {
-             btnEye.setText("👁"); // Fallback si no carga imagen
+             // Si fallan las imágenes, usamos texto
+             btnEye.setText("👁"); 
+             btnEye.setFont(new Font("Arial", Font.PLAIN, 16));
         }
-        */
-        
-        // Versión con Emoji (Actualmente activa)
-        btnEye.setText("👁");
-        btnEye.setFont(new Font("Arial", Font.PLAIN, 16));
 
         // Lógica del ojo
         btnEye.addMouseListener(new MouseAdapter() {
@@ -116,14 +117,24 @@ public class VentanaPrincipal extends JFrame {
                 String current = String.valueOf(txtPass.getPassword());
                 if (current.equals("Password")) return;
                 
-                if (txtPass.getEchoChar() != 0) { // Si está oculto (puntos), mostrar texto
-                    txtPass.setEchoChar((char) 0);
-                    // btnEye.setIcon(new ImageIcon(...)); // Aquí pondrías el icono de ojo ABIERTO
-                    btnEye.setText("👁‍🗨"); // Emoji alternativa
-                } else { // Si está visible, ocultar
-                    txtPass.setEchoChar('●');
-                    // btnEye.setIcon(new ImageIcon(...)); // Aquí pondrías el icono de ojo CERRADO
-                    btnEye.setText("👁"); // Emoji alternativa
+                // Usamos los atributos de la clase (ya no dan error)
+                if (iconEyeClosed != null && iconEyeOpen != null) {
+                    if (txtPass.getEchoChar() != 0) { 
+                        txtPass.setEchoChar((char) 0);
+                        btnEye.setIcon(iconEyeOpen); // Ojo ABIERTO
+                    } else { 
+                        txtPass.setEchoChar('●');
+                        btnEye.setIcon(iconEyeClosed); // Ojo CERRADO
+                    }
+                } else {
+                    // Lógica de respaldo con texto si las imágenes fallaron
+                    if (txtPass.getEchoChar() != 0) {
+                        txtPass.setEchoChar((char) 0);
+                        btnEye.setText("Ocultar");
+                    } else {
+                        txtPass.setEchoChar('●');
+                        btnEye.setText("👁");
+                    }
                 }
             }
         });
@@ -154,24 +165,21 @@ public class VentanaPrincipal extends JFrame {
         JLabel lblRegistro = new JLabel("¿Aún no tienes cuenta? Regístrate");
         lblRegistro.setForeground(COLOR_BOTTON);
         lblRegistro.setFont(new Font("Arial", Font.BOLD, 13));
-        lblRegistro.setCursor(new Cursor(Cursor.HAND_CURSOR)); // Mano al pasar el mouse
-        
-        // Fondo transparente para que herede el blanco del JFrame
+        lblRegistro.setCursor(new Cursor(Cursor.HAND_CURSOR)); 
         lblRegistro.setOpaque(false); 
 
         // --- POSICIONAMIENTO EXACTO (Desktop 1366x768) ---
         int anchoInputs = 280;
         int altoInput = 40;
-        int xInputs = (1366 - anchoInputs) / 2; // Centrado horizontal: 543
+        int xInputs = (1366 - anchoInputs) / 2; 
 
-        // Centrado vertical aproximado
         int yInicio = 200; 
         
-        lblLogo.setBounds(xInputs, yInicio, anchoInputs, 158); // Logo
-        txtUser.setBounds(xInputs, yInicio + 180, anchoInputs, altoInput); // User
-        panelPass.setBounds(xInputs, yInicio + 230, anchoInputs, altoInput); // Pass
-        btnLogin.setBounds(xInputs, yInicio + 290, anchoInputs, altoInput); // Login
-        lblRegistro.setBounds(xInputs, yInicio + 350, anchoInputs, 30); // Link Registro
+        lblLogo.setBounds(xInputs, yInicio, anchoInputs, 158); 
+        txtUser.setBounds(xInputs, yInicio + 180, anchoInputs, altoInput); 
+        panelPass.setBounds(xInputs, yInicio + 230, anchoInputs, altoInput); 
+        btnLogin.setBounds(xInputs, yInicio + 290, anchoInputs, altoInput); 
+        lblRegistro.setBounds(xInputs, yInicio + 350, anchoInputs, 30); 
 
         // --- AGREGAR Y EVENTOS ---
         add(lblLogo); add(txtUser); add(panelPass); add(btnLogin); add(lblRegistro);
@@ -214,12 +222,10 @@ public class VentanaPrincipal extends JFrame {
         getContentPane().removeAll();
         getContentPane().setBackground(COLOR_FONDO);
 
-        // --- TÍTULO ---
         JLabel lblTitulo = new JLabel("Crear Cuenta");
         lblTitulo.setFont(new Font("Arial", Font.BOLD, 24));
         lblTitulo.setHorizontalAlignment(SwingConstants.CENTER);
 
-        // --- CAMPOS ---
         JTextField txtNombre = new JTextField();
         txtNombre.setBackground(COLOR_FIELD); txtNombre.setText("Nombre Completo"); txtNombre.setForeground(COLOR_PLACEHOLDER);
 
@@ -243,7 +249,6 @@ public class VentanaPrincipal extends JFrame {
         JTextField txtFoto = new JTextField("default_profile.png"); 
         txtFoto.setBackground(COLOR_FIELD);
 
-        // --- BOTONES ---
         JButton btnRegistrar = new JButton("Registrarse");
         btnRegistrar.setBackground(COLOR_BOTTON); btnRegistrar.setForeground(Color.WHITE);
         btnRegistrar.setFont(new Font("Arial", Font.BOLD, 14));
@@ -254,7 +259,6 @@ public class VentanaPrincipal extends JFrame {
         btnVolver.setFont(new Font("Arial", Font.BOLD, 12));
         btnVolver.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
-        // --- POSICIONAMIENTO (Desktop) ---
         int anchoInputs = 280;
         int altoInput = 40;
         int xInputs = (1366 - anchoInputs) / 2;
@@ -279,7 +283,6 @@ public class VentanaPrincipal extends JFrame {
         btnRegistrar.setBounds(xInputs, y, anchoInputs, altoInput); y += 50;
         btnVolver.setBounds(xInputs, y, anchoInputs, 30);
 
-        // --- AGREGAR AL FRAME ---
         add(lblTitulo);
         add(txtNombre); add(txtUser); add(txtPass);
         add(spnEdad); add(cmbGenero); add(lblEdad); add(lblGenero);
@@ -287,7 +290,6 @@ public class VentanaPrincipal extends JFrame {
         add(txtFoto);
         add(btnRegistrar); add(btnVolver);
 
-        // --- EVENTOS ---
         btnVolver.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
