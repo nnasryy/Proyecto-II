@@ -1,8 +1,7 @@
 package gui;
 
-import enums.ModoVista;
+import enums.TipoCuenta;
 import instagram.Sistema;
-import interfaces.ConfiguracionVisual;
 import javax.swing.*;
 import javax.swing.border.LineBorder;
 import java.awt.*;
@@ -10,41 +9,36 @@ import java.awt.event.*;
 
 public class VentanaPrincipal extends JFrame {
 
-    private Sistema sistema;
-    private ModoVista modoActual;
+    private Sistema sistema; // Objeto lógico
 
     // COLORES
     private final Color COLOR_FONDO = Color.WHITE;
-    private final Color COLOR_BOTTON = new Color(64, 155, 230); // Azul claro
-    private final Color COLOR_FIELD = new Color(242, 247, 247); // Gris Text Field
-    private final Color COLOR_FONT = new Color(143, 140, 140); // Gris Oscuro Text Field
-    private final Color COLOR_PLACEHOLDER = new Color(180, 180, 180); // Gris claro para guías
+    private final Color COLOR_BOTTON = new Color(64, 155, 230);
+    private final Color COLOR_FIELD = new Color(242, 247, 247);
+    private final Color COLOR_FONT = new Color(143, 140, 140);
+    private final Color COLOR_PLACEHOLDER = new Color(180, 180, 180);
 
-    public static void main(String[] args) {
-        try {
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-        } catch (Exception e) {
-        }
-        VentanaPrincipal ventana = new VentanaPrincipal(null);
-        ventana.setVisible(true);
-    }
+ 
 
     public VentanaPrincipal(Sistema sistema) {
         this.sistema = sistema;
-        this.modoActual = ModoVista.MOBILE; // Cambiar a DESKTOP para probar
         configurarVentana();
         inicializarComponentesLogin();
     }
 
     private void configurarVentana() {
-        setSize(ConfiguracionVisual.getAncho(modoActual), ConfiguracionVisual.getAlto(modoActual));
-        setTitle("InstaRAIZ - " + modoActual);
-        setLocationRelativeTo(null);
+        // --- MODO DESKTOP FIJO ---
+        setSize(1366, 768); 
+        setTitle("InstaRAIZ - Desktop");
+        setLocationRelativeTo(null); // Centrar
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLayout(null);
         setResizable(false);
     }
 
+    // ---------------------------------------------------------
+    // VISTA 1: LOGIN
+    // ---------------------------------------------------------
     private void inicializarComponentesLogin() {
         getContentPane().removeAll();
         getContentPane().setBackground(COLOR_FONDO);
@@ -61,184 +55,281 @@ public class VentanaPrincipal extends JFrame {
             lblLogo.setFont(new Font("Arial", Font.BOLD, 30));
         }
 
-        // --- 1. CAMPO USUARIO (Con Placeholder) ---
+        // --- CAMPO USUARIO ---
         JTextField txtUser = new JTextField();
         txtUser.setBackground(COLOR_FIELD);
-        txtUser.setFont(new Font("Arial", Font.PLAIN, 14));
-        txtUser.setText("Username"); // Texto inicial
+        txtUser.setFont(new Font("Arial", Font.BOLD, 14));
+        txtUser.setText("Username");
         txtUser.setForeground(COLOR_PLACEHOLDER);
+        txtUser.setBorder(BorderFactory.createCompoundBorder(new LineBorder(new Color(200, 200, 200)), BorderFactory.createEmptyBorder(0, 5, 0, 5)));
         
-        // Borde para que coincida con el estilo del campo de contraseña
-        txtUser.setBorder(BorderFactory.createCompoundBorder(
-                new LineBorder(new Color(200, 200, 200)),
-                BorderFactory.createEmptyBorder(0, 5, 0, 5)
-        ));
-
-        // Lógica del Placeholder (User)
         txtUser.addFocusListener(new FocusAdapter() {
             @Override
             public void focusGained(FocusEvent e) {
-                if (txtUser.getText().equals("Username")) {
-                    txtUser.setText("");
-                    txtUser.setForeground(COLOR_FONT);
-                }
+                if (txtUser.getText().equals("Username")) { txtUser.setText(""); txtUser.setForeground(COLOR_FONT); }
             }
             @Override
             public void focusLost(FocusEvent e) {
-                if (txtUser.getText().isEmpty()) {
-                    txtUser.setText("Username");
-                    txtUser.setForeground(COLOR_PLACEHOLDER);
-                }
+                if (txtUser.getText().isEmpty()) { txtUser.setText("Username"); txtUser.setForeground(COLOR_PLACEHOLDER); }
             }
         });
 
-        // --- 2. CAMPO CONTRASEÑA (Con Placeholder e Ícono) ---
-        
-        // Panel contenedor para simular el campo con el ícono adentro
+        // --- PANEL PASSWORD ---
         JPanel panelPass = new JPanel(new BorderLayout());
         panelPass.setBackground(COLOR_FIELD);
-        panelPass.setBorder(BorderFactory.createCompoundBorder(
-                new LineBorder(new Color(200, 200, 200)),
-                BorderFactory.createEmptyBorder(0, 5, 0, 5)
-        ));
+        panelPass.setBorder(BorderFactory.createCompoundBorder(new LineBorder(new Color(200, 200, 200)), BorderFactory.createEmptyBorder(0, 5, 0, 5)));
 
-        // Campo de contraseña real
         JPasswordField txtPass = new JPasswordField();
-        txtPass.setBackground(COLOR_FIELD);
-        txtPass.setFont(new Font("Arial", Font.PLAIN, 14));
-        txtPass.setBorder(null); // Sin borde propio
-        txtPass.setText("Password");
-        txtPass.setEchoChar((char) 0); // Visible inicialmente para ver el placeholder
-        txtPass.setForeground(COLOR_PLACEHOLDER);
+        txtPass.setBackground(COLOR_FIELD); txtPass.setFont(new Font("Arial", Font.BOLD, 14)); txtPass.setBorder(null);
+        txtPass.setText("Password"); txtPass.setEchoChar((char) 0); txtPass.setForeground(COLOR_PLACEHOLDER);
 
-        // Etiqueta del Ojo (Botón Ver/Ocultar)
-        JLabel btnEye = new JLabel("👁");
-        btnEye.setFont(new Font("Arial", Font.PLAIN, 16));
+        // --- BOTÓN OJO (Ver/Ocultar Contraseña) ---
+        JLabel btnEye = new JLabel();
         btnEye.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        
+        // --- AQUÍ PUEDES AÑADIR TUS PNGs ---
+        // Si tienes las imágenes, descomenta este bloque y comenta el bloque del emoji abajo:
+        /*
+        try {
+            ImageIcon iconoCerrar = new ImageIcon(getClass().getResource("/images/eye_closed.png")); // Tu imagen ojo cerrado
+            ImageIcon iconoAbrir = new ImageIcon(getClass().getResource("/images/eye_open.png"));   // Tu imagen ojo abierto
+            
+            // Escalarlas a un tamaño pequeño (ej 20x20)
+            Image imgCerrar = iconoCerrar.getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH);
+            Image imgAbrir = iconoAbrir.getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH);
+            
+            // Asignar icono inicial
+            btnEye.setIcon(new ImageIcon(imgCerrar)); 
+        } catch (Exception e) {
+             btnEye.setText("👁"); // Fallback si no carga imagen
+        }
+        */
+        
+        // Versión con Emoji (Actualmente activa)
+        btnEye.setText("👁");
+        btnEye.setFont(new Font("Arial", Font.PLAIN, 16));
 
-        // Lógica del Placeholder (Password)
-        txtPass.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusGained(FocusEvent e) {
-                String current = String.valueOf(txtPass.getPassword());
-                if (current.equals("Password")) {
-                    txtPass.setText("");
-                    txtPass.setForeground(COLOR_FONT);
-                    txtPass.setEchoChar('●'); // Ocultar al escribir
-                }
-            }
-            @Override
-            public void focusLost(FocusEvent e) {
-                if (txtPass.getPassword().length == 0) {
-                    txtPass.setText("Password");
-                    txtPass.setEchoChar((char) 0); // Mostrar texto guía
-                    txtPass.setForeground(COLOR_PLACEHOLDER);
-                }
-            }
-        });
-
-        // Lógica Click Ojo (Mostrar/Ocultar)
+        // Lógica del ojo
         btnEye.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 String current = String.valueOf(txtPass.getPassword());
-                // No hacer nada si sigue el placeholder
                 if (current.equals("Password")) return;
-
-                if (txtPass.getEchoChar() == 0) {
-                    // Si está visible, ocultar
-                    txtPass.setEchoChar('●');
-                    btnEye.setText("👁"); // Podrías cambiar el ícono aquí
-                } else {
-                    // Si está oculto, mostrar
+                
+                if (txtPass.getEchoChar() != 0) { // Si está oculto (puntos), mostrar texto
                     txtPass.setEchoChar((char) 0);
-                    btnEye.setText("👁‍🗨");
+                    // btnEye.setIcon(new ImageIcon(...)); // Aquí pondrías el icono de ojo ABIERTO
+                    btnEye.setText("👁‍🗨"); // Emoji alternativa
+                } else { // Si está visible, ocultar
+                    txtPass.setEchoChar('●');
+                    // btnEye.setIcon(new ImageIcon(...)); // Aquí pondrías el icono de ojo CERRADO
+                    btnEye.setText("👁"); // Emoji alternativa
                 }
             }
         });
 
-        // Ensamblar panel de contraseña
+        // Lógica Placeholder Password
+        txtPass.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                String current = String.valueOf(txtPass.getPassword());
+                if (current.equals("Password")) { txtPass.setText(""); txtPass.setForeground(COLOR_FONT); txtPass.setEchoChar('●'); }
+            }
+            @Override
+            public void focusLost(FocusEvent e) {
+                if (txtPass.getPassword().length == 0) { txtPass.setText("Password"); txtPass.setEchoChar((char) 0); txtPass.setForeground(COLOR_PLACEHOLDER); }
+            }
+        });
+        
         panelPass.add(txtPass, BorderLayout.CENTER);
         panelPass.add(btnEye, BorderLayout.EAST);
 
-        // --- BOTONES (Con corrección de color) ---
+        // --- BOTÓN LOGIN ---
         JButton btnLogin = new JButton("Iniciar Sesión");
-        btnLogin.setBackground(COLOR_BOTTON);
-        btnLogin.setForeground(Color.WHITE);
+        btnLogin.setBackground(COLOR_BOTTON); btnLogin.setForeground(Color.WHITE);
         btnLogin.setFont(new Font("Arial", Font.BOLD, 14));
-        btnLogin.setOpaque(true);
-        btnLogin.setBorderPainted(false);
+        btnLogin.setOpaque(true); btnLogin.setBorderPainted(false);
 
-        JButton btnRegistro = new JButton("Registrar");
-        btnRegistro.setBackground(COLOR_BOTTON);
-        btnRegistro.setForeground(Color.WHITE);
-        btnRegistro.setFont(new Font("Arial", Font.BOLD, 14));
-        btnRegistro.setOpaque(true);
-        btnRegistro.setBorderPainted(false);
+        // --- ENLACE REGISTRO (Texto con acción) ---
+        JLabel lblRegistro = new JLabel("¿Aún no tienes cuenta? Regístrate");
+        lblRegistro.setForeground(COLOR_BOTTON);
+        lblRegistro.setFont(new Font("Arial", Font.BOLD, 13));
+        lblRegistro.setCursor(new Cursor(Cursor.HAND_CURSOR)); // Mano al pasar el mouse
+        
+        // Fondo transparente para que herede el blanco del JFrame
+        lblRegistro.setOpaque(false); 
 
-        // --- POSICIONAMIENTO DINÁMICO (Centrado y Unido) ---
-        int anchoVentana = getWidth();
-        int altoVentana = getHeight();
+        // --- POSICIONAMIENTO EXACTO (Desktop 1366x768) ---
         int anchoInputs = 280;
         int altoInput = 40;
-        int altoLogo = 158;
+        int xInputs = (1366 - anchoInputs) / 2; // Centrado horizontal: 543
+
+        // Centrado vertical aproximado
+        int yInicio = 200; 
         
-        int espacioEntreInputs = 10;
-        int espacioEntreBotones = 10;
-        int espacioLogoInput = 20; // Espacio pequeño para "unir" logo hacia abajo
+        lblLogo.setBounds(xInputs, yInicio, anchoInputs, 158); // Logo
+        txtUser.setBounds(xInputs, yInicio + 180, anchoInputs, altoInput); // User
+        panelPass.setBounds(xInputs, yInicio + 230, anchoInputs, altoInput); // Pass
+        btnLogin.setBounds(xInputs, yInicio + 290, anchoInputs, altoInput); // Login
+        lblRegistro.setBounds(xInputs, yInicio + 350, anchoInputs, 30); // Link Registro
 
-        // Cálculo de altura total del bloque
-        int altoTotalBloque = altoLogo + espacioLogoInput + 
-                              altoInput + espacioEntreInputs + 
-                              altoInput + espacioEntreBotones + 
-                              altoInput + espacioEntreBotones + 
-                              altoInput;
+        // --- AGREGAR Y EVENTOS ---
+        add(lblLogo); add(txtUser); add(panelPass); add(btnLogin); add(lblRegistro);
 
-        int yInicio = (altoVentana - altoTotalBloque) / 2;
-        int xInputs = (anchoVentana - anchoInputs) / 2;
-        int xLogo = (anchoVentana - 280) / 2;
-
-        int yActual = yInicio;
-
-        // Logo
-        lblLogo.setBounds(xLogo, yActual, 280, altoLogo);
-        yActual += altoLogo + espacioLogoInput;
-
-        // User
-        txtUser.setBounds(xInputs, yActual, anchoInputs, altoInput);
-        yActual += altoInput + espacioEntreInputs;
-
-        // Pass (Notese que agregamos 'panelPass' en lugar de 'txtPass')
-        panelPass.setBounds(xInputs, yActual, anchoInputs, altoInput);
-        yActual += altoInput + espacioEntreBotones;
-
-        // Login
-        btnLogin.setBounds(xInputs, yActual, anchoInputs, altoInput);
-        yActual += altoInput + espacioEntreBotones;
-
-        // Registro
-        btnRegistro.setBounds(xInputs, yActual, anchoInputs, altoInput);
-
-        // --- AGREGAR AL FRAME ---
-        add(lblLogo);
-        add(txtUser);
-        add(panelPass); // Agregamos el panel, no el campo suelto
-        add(btnLogin);
-        add(btnRegistro);
-
-        // Eventos
+        // Evento Login
         btnLogin.addActionListener(e -> {
             String user = txtUser.getText();
             String pass = String.valueOf(txtPass.getPassword());
-            // Validación simple para no loguear con placeholders
+
             if(user.equals("Username") || pass.equals("Password")) {
-                 JOptionPane.showMessageDialog(this, "Por favor complete los campos", "Error", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Por favor complete los campos", "Error", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            boolean exito = sistema.login(user, pass);
+            
+            if (exito) {
+                JOptionPane.showMessageDialog(this, "¡Bienvenido " + sistema.getUsuarioActual().getNombreCompleto() + "!");
+                cargarVistaFeed(); 
             } else {
-                 JOptionPane.showMessageDialog(this, "Login exitoso para: " + user);
+                JOptionPane.showMessageDialog(this, "Usuario o contraseña incorrectos.", "Error de Login", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        // Evento Click en Texto de Registro
+        lblRegistro.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                cargarVistaRegistro();
+            }
+        });
+
+        revalidate(); repaint();
+    }
+
+    // ---------------------------------------------------------
+    // VISTA 2: REGISTRO
+    // ---------------------------------------------------------
+    private void cargarVistaRegistro() {
+        getContentPane().removeAll();
+        getContentPane().setBackground(COLOR_FONDO);
+
+        // --- TÍTULO ---
+        JLabel lblTitulo = new JLabel("Crear Cuenta");
+        lblTitulo.setFont(new Font("Arial", Font.BOLD, 24));
+        lblTitulo.setHorizontalAlignment(SwingConstants.CENTER);
+
+        // --- CAMPOS ---
+        JTextField txtNombre = new JTextField();
+        txtNombre.setBackground(COLOR_FIELD); txtNombre.setText("Nombre Completo"); txtNombre.setForeground(COLOR_PLACEHOLDER);
+
+        JTextField txtUser = new JTextField();
+        txtUser.setBackground(COLOR_FIELD); txtUser.setText("Username"); txtUser.setForeground(COLOR_PLACEHOLDER);
+
+        JPasswordField txtPass = new JPasswordField();
+        txtPass.setBackground(COLOR_FIELD); txtPass.setText("Password"); txtPass.setEchoChar((char) 0); txtPass.setForeground(COLOR_PLACEHOLDER);
+
+        JSpinner spnEdad = new JSpinner(new SpinnerNumberModel(18, 1, 100, 1));
+        spnEdad.setFont(new Font("Arial", Font.PLAIN, 14));
+        
+        JComboBox<String> cmbGenero = new JComboBox<>();
+        cmbGenero.addItem("Masculino");
+        cmbGenero.addItem("Femenino");
+        
+        JComboBox<String> cmbTipo = new JComboBox<>();
+        cmbTipo.addItem("Pública");
+        cmbTipo.addItem("Privada");
+
+        JTextField txtFoto = new JTextField("default_profile.png"); 
+        txtFoto.setBackground(COLOR_FIELD);
+
+        // --- BOTONES ---
+        JButton btnRegistrar = new JButton("Registrarse");
+        btnRegistrar.setBackground(COLOR_BOTTON); btnRegistrar.setForeground(Color.WHITE);
+        btnRegistrar.setFont(new Font("Arial", Font.BOLD, 14));
+        btnRegistrar.setOpaque(true); btnRegistrar.setBorderPainted(false);
+
+        JLabel btnVolver = new JLabel("¿Ya tienes cuenta? Volver");
+        btnVolver.setForeground(COLOR_BOTTON);
+        btnVolver.setFont(new Font("Arial", Font.BOLD, 12));
+        btnVolver.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        // --- POSICIONAMIENTO (Desktop) ---
+        int anchoInputs = 280;
+        int altoInput = 40;
+        int xInputs = (1366 - anchoInputs) / 2;
+        int y = 120;
+
+        lblTitulo.setBounds(xInputs, y, anchoInputs, 40); y += 50;
+        txtNombre.setBounds(xInputs, y, anchoInputs, altoInput); y += 50;
+        txtUser.setBounds(xInputs, y, anchoInputs, altoInput); y += 50;
+        txtPass.setBounds(xInputs, y, anchoInputs, altoInput); y += 50;
+        
+        JLabel lblEdad = new JLabel("Edad:"); lblEdad.setBounds(xInputs, y, 100, 20); 
+        spnEdad.setBounds(xInputs, y + 20, 100, 30);
+        
+        JLabel lblGenero = new JLabel("Género:"); lblGenero.setBounds(xInputs + 140, y, 100, 20);
+        cmbGenero.setBounds(xInputs + 140, y + 20, 140, 30);
+        y += 60;
+
+        JLabel lblTipo = new JLabel("Tipo Cuenta:"); lblTipo.setBounds(xInputs, y, 100, 20);
+        cmbTipo.setBounds(xInputs, y + 20, anchoInputs, 30);
+        y += 60;
+
+        btnRegistrar.setBounds(xInputs, y, anchoInputs, altoInput); y += 50;
+        btnVolver.setBounds(xInputs, y, anchoInputs, 30);
+
+        // --- AGREGAR AL FRAME ---
+        add(lblTitulo);
+        add(txtNombre); add(txtUser); add(txtPass);
+        add(spnEdad); add(cmbGenero); add(lblEdad); add(lblGenero);
+        add(cmbTipo); add(lblTipo);
+        add(txtFoto);
+        add(btnRegistrar); add(btnVolver);
+
+        // --- EVENTOS ---
+        btnVolver.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                inicializarComponentesLogin();
+            }
+        });
+
+        btnRegistrar.addActionListener(e -> {
+            String nombre = txtNombre.getText();
+            String user = txtUser.getText();
+            String pass = String.valueOf(txtPass.getPassword());
+            int edad = (int) spnEdad.getValue();
+            char genero = cmbGenero.getSelectedItem().toString().charAt(0); 
+            String foto = txtFoto.getText();
+            
+            TipoCuenta tipo = (cmbTipo.getSelectedIndex() == 0) ? TipoCuenta.PUBLICA : TipoCuenta.PRIVADA;
+
+            if(nombre.equals("Nombre Completo") || user.equals("Username") || pass.equals("Password")) {
+                JOptionPane.showMessageDialog(this, "Rellene todos los campos.", "Error", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            boolean exito = sistema.registrarUsuario(user, pass, nombre, genero, edad, foto, tipo);
+
+            if (exito) {
+                JOptionPane.showMessageDialog(this, "Cuenta creada exitosamente.");
+                inicializarComponentesLogin(); 
+            } else {
+                JOptionPane.showMessageDialog(this, "No se pudo crear el usuario (¿Usuario ya existe?).", "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
 
         revalidate();
         repaint();
+    }
+
+    // ---------------------------------------------------------
+    // VISTA 3: FEED
+    // ---------------------------------------------------------
+    private void cargarVistaFeed() {
+        getContentPane().removeAll();
+        repaint();
+        JOptionPane.showMessageDialog(this, "Cargando Feed...");
     }
 }
