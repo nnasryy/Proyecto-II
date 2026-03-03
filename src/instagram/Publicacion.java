@@ -1,7 +1,3 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package instagram;
 
 import java.time.LocalDate;
@@ -16,17 +12,24 @@ public class Publicacion {
     private String hashtags;         
     private String menciones;          
     private String rutaImagen;          
-    private String tipoMultimedia;      //CUADRAD, VERTICAL, HORIZONTAL
+    private String tipoMultimedia;      // CUADRADA, VERTICAL, HORIZONTAL
 
-    // Constructor y Getters/Setters
+    // Constructor para crear NUEVAS publicaciones (usa fecha/hora actual)
     public Publicacion(String autor, String contenido, String rutaImagen, String hashtags, String menciones) {
         this.autor = autor;
         this.contenido = contenido;
         this.rutaImagen = rutaImagen;
         this.fecha = LocalDate.now();
         this.hora = LocalTime.now();
-        this.tipoMultimedia = "CUADRADA"; //Solo por mock
+        this.tipoMultimedia = "CUADRADA"; // Valor por defecto según tu código
+        this.hashtags = hashtags;
+        this.menciones = menciones;
     }
+
+    // Constructor vacío (necesario para la lectura desde archivo)
+    public Publicacion() {
+    }
+
     // Método para convertir la publicación a texto para guardar en archivo
     public String toFileString() {
         // Formato: autor|fecha|hora|contenido|hashtags|menciones|ruta|tipo
@@ -41,6 +44,30 @@ public class Publicacion {
                tipoMultimedia;
     }
 
+    // --- MÉTODO ESTÁTICO PARA LEER DESDE ARCHIVO ---
+    public static Publicacion fromFileString(String linea) {
+        try {
+            String[] datos = linea.split("\\|");
+            if (datos.length < 8) return null; // Validación básica
+
+            Publicacion p = new Publicacion();
+            p.autor = datos[0];
+            p.fecha = LocalDate.parse(datos[1]);
+            p.hora = LocalTime.parse(datos[2], DateTimeFormatter.ofPattern("HH:mm:ss"));
+            p.contenido = datos[3];
+            p.hashtags = datos[4];
+            p.menciones = datos[5];
+            p.rutaImagen = datos[6];
+            p.tipoMultimedia = datos[7];
+            
+            return p;
+        } catch (Exception e) {
+            System.out.println("Error al parsear publicación: " + e.getMessage());
+            return null;
+        }
+    }
+
+    // --- GETTERS ---
     public String getAutor() {
         return autor;
     }
@@ -72,8 +99,14 @@ public class Publicacion {
     public String getTipoMultimedia() {
         return tipoMultimedia;
     }
-  
     
-    
-    
+    // --- SETTERS (Necesarios para fromFileString si no se usara el constructor vacío) ---
+    public void setAutor(String autor) { this.autor = autor; }
+    public void setContenido(String contenido) { this.contenido = contenido; }
+    public void setFecha(LocalDate fecha) { this.fecha = fecha; }
+    public void setHora(LocalTime hora) { this.hora = hora; }
+    public void setHashtags(String hashtags) { this.hashtags = hashtags; }
+    public void setMenciones(String menciones) { this.menciones = menciones; }
+    public void setRutaImagen(String rutaImagen) { this.rutaImagen = rutaImagen; }
+    public void setTipoMultimedia(String tipoMultimedia) { this.tipoMultimedia = tipoMultimedia; }
 }

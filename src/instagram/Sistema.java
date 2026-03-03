@@ -8,6 +8,9 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Scanner;
 
 public class Sistema {
@@ -43,7 +46,7 @@ public class Sistema {
     }
 
     // ---------------------------
-    // REGISTRAR USUARIO (Actualizado con todos los campos)
+    // REGISTRAR USUARIO
     // ---------------------------
     public boolean registrarUsuario(String username, String password, String nombreCompleto, 
                                     char genero, int edad, String fotoPerfil, TipoCuenta tipoCuenta) {
@@ -53,16 +56,13 @@ public class Sistema {
             return false;
         }
 
-        // Por defecto la cuenta se crea ACTIVA
         EstadoCuenta estado = EstadoCuenta.ACTIVO;
         LocalDate fechaRegistro = LocalDate.now();
 
-        // Crear objeto usuario (nota: tu clase Usuario debe aceptar estos parámetros)
         Usuario nuevo = new Usuario(username, password, nombreCompleto, genero, edad, 
                                     fotoPerfil, fechaRegistro, tipoCuenta, estado);
 
         try (FileWriter writer = new FileWriter(RUTA_USERS, true)) {
-            // Formato guardado: username|password|nombre|genero|edad|foto|fecha|tipo|estado
             writer.write(
                     nuevo.getUsername() + "|" +
                     nuevo.getPassword() + "|" +
@@ -86,7 +86,7 @@ public class Sistema {
     }
 
     // ---------------------------
-    // LOGIN (Actualizado para leer nuevos campos)
+    // LOGIN
     // ---------------------------
     public boolean login(String username, String password) {
         try (Scanner sc = new Scanner(new File(RUTA_USERS))) {
@@ -94,17 +94,14 @@ public class Sistema {
                 String linea = sc.nextLine();
                 String[] datos = linea.split("\\|");
 
-                // datos[0] = username, datos[1] = password
                 if (datos[0].equals(username) && datos[1].equals(password)) {
                     
-                    // Verificar estado de la cuenta
-                    EstadoCuenta estado = EstadoCuenta.valueOf(datos[8]); // El último campo
+                    EstadoCuenta estado = EstadoCuenta.valueOf(datos[8]);
                     if (estado == EstadoCuenta.DESACTIVADO) {
                         System.out.println("Esta cuenta está desactivada.");
                         return false;
                     }
 
-                    // Reconstruir el objeto Usuario con todos los datos
                     String nombre = datos[2];
                     char genero = datos[3].charAt(0);
                     int edad = Integer.parseInt(datos[4]);
@@ -129,7 +126,7 @@ public class Sistema {
     // ---------------------------
     // VERIFICAR USERNAME
     // ---------------------------
-    private boolean existeUsername(String username) {
+    public boolean existeUsername(String username) {
         try (Scanner sc = new Scanner(new File(RUTA_USERS))) {
             while (sc.hasNextLine()) {
                 String linea = sc.nextLine();
@@ -143,7 +140,35 @@ public class Sistema {
         }
         return false;
     }
-
+    
+    // -----------------------------
+    // VER SI USUARIO EXISTE 
+    // ------------------------
+    // Agregar en Sistema.java
+public Usuario buscarUsuario(String username) {
+    try (Scanner sc = new Scanner(new File(RUTA_USERS))) {
+        while (sc.hasNextLine()) {
+            String linea = sc.nextLine();
+            String[] datos = linea.split("\\|");
+            if (datos[0].equals(username)) {
+                // Reconstruir usuario básico para validación
+                String nombre = datos[2];
+                char genero = datos[3].charAt(0);
+                int edad = Integer.parseInt(datos[4]);
+                String foto = datos[5];
+                LocalDate fecha = LocalDate.parse(datos[6]);
+                TipoCuenta tipo = TipoCuenta.valueOf(datos[7]);
+                EstadoCuenta estado = EstadoCuenta.valueOf(datos[8]);
+                
+                return new Usuario(username, datos[1], nombre, genero, edad, foto, fecha, tipo, estado);
+            }
+        }
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+    return null;
+}
+    
     // ---------------------------
     // CREAR ESTRUCTURA DE ARCHIVOS POR USUARIO 
     // ---------------------------
@@ -155,7 +180,6 @@ public class Sistema {
             carpetaUsuario.mkdir();
         }
 
-        // Crear archivos .ins vacíos
         String[] archivos = {"followers.ins", "following.ins", "insta.ins", "inbox.ins", "stickers.ins"};
         for (String archivo : archivos) {
             File f = new File(rutaUser + "/" + archivo);
@@ -166,35 +190,30 @@ public class Sistema {
             }
         }
 
-        // Crear subcarpetas necesarias
         new File(rutaUser + "/imagenes").mkdir();
         new File(rutaUser + "/stickers_personales").mkdir();
-        // folders_personales se puede crear si se necesita, el PDF lo menciona.
         new File(rutaUser + "/folders_personales").mkdir(); 
     }
-        // ---------------------------
+    
+    // ---------------------------
     // SEGUIR USUARIO 
     // ---------------------------
     public boolean seguirUsuario(String usernameObjetivo) {
-        if (usuarioActual == null) return false; // No hay login
-        if (usernameObjetivo.equals(usuarioActual.getUsername())) return false; // No se puede seguir a sí mismo
+        if (usuarioActual == null) return false; 
+        if (usernameObjetivo.equals(usuarioActual.getUsername())) return false; 
 
-        // Rutas de archivos
         String miFollowingPath = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins";
         String suFollowersPath = RUTA_RAIZ + "/" + usernameObjetivo + "/followers.ins";
 
-        // Validar si ya lo sigo
         if (verificarEnArchivo(miFollowingPath, usernameObjetivo)) {
-            System.out.println("Ya sigues a este usuario."); //Se imprime
+            System.out.println("Ya sigues a este usuario.");
             return false;
         }
 
-        // Escribir en mi archivo de following
         try (FileWriter fw = new FileWriter(miFollowingPath, true)) {
             fw.write(usernameObjetivo + "\n");
         } catch (IOException e) { e.printStackTrace(); }
 
-        // Escribir en su archivo de followers
         try (FileWriter fw = new FileWriter(suFollowersPath, true)) {
             fw.write(usuarioActual.getUsername() + "\n");
         } catch (IOException e) { e.printStackTrace(); }
@@ -247,7 +266,71 @@ public class Sistema {
         }
         return false;
     }
-    
-    
-    
+
+    // ---------------------------
+    // NUEVO: CERRAR SESIÓN
+    // ---------------------------
+    public void logout() {
+        this.usuarioActual = null;
+    }
+
+    // ---------------------------
+    // NUEVO: OBTENER TIMELINE (FEED)
+    // ---------------------------
+    public ArrayList<Publicacion> getTimeline() {
+        ArrayList<Publicacion> timeline = new ArrayList<>();
+
+        if (usuarioActual == null) return timeline;
+
+        // 1. Mis propias publicaciones
+        leerPublicacionesUsuario(usuarioActual.getUsername(), timeline);
+
+        // 2. Publicaciones de quienes sigo
+        String rutaFollowing = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins";
+        File fFollowing = new File(rutaFollowing);
+        
+        if (fFollowing.exists()) {
+            try (Scanner sc = new Scanner(fFollowing)) {
+                while (sc.hasNextLine()) {
+                    String usernameSeguido = sc.nextLine().trim();
+                    if (!usernameSeguido.isEmpty()) {
+                        leerPublicacionesUsuario(usernameSeguido, timeline);
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        // 3. Ordenar por fecha y hora (más reciente primero)
+        timeline.sort(Comparator.comparing(Publicacion::getFecha)
+                               .thenComparing(Publicacion::getHora)
+                               .reversed());
+
+        return timeline;
+    }
+
+    // ---------------------------
+    // NUEVO: MÉTODO AUXILIAR LEER PUBLICACIONES
+    // ---------------------------
+    private void leerPublicacionesUsuario(String username, ArrayList<Publicacion> lista) {
+        String rutaInsta = RUTA_RAIZ + "/" + username + "/insta.ins";
+        File archivo = new File(rutaInsta);
+        
+        if (!archivo.exists()) return;
+
+        try (Scanner sc = new Scanner(archivo)) {
+            while (sc.hasNextLine()) {
+                String linea = sc.nextLine();
+                if (!linea.trim().isEmpty()) {
+                    Publicacion p = Publicacion.fromFileString(linea);
+                    if (p != null) {
+                        lista.add(p);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 }
