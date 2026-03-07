@@ -5,13 +5,14 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 
 public class Publicacion {
+
     private String autor; // Username
     private String contenido;
     private LocalDate fecha;
-    private LocalTime hora;            
-    private String hashtags;         
-    private String menciones;          
-    private String rutaImagen;          
+    private LocalTime hora;
+    private String hashtags;
+    private String menciones;
+    private String rutaImagen;
     private String tipoMultimedia;      // CUADRADA, VERTICAL, HORIZONTAL
 
     // Constructor para crear NUEVAS publicaciones (usa fecha/hora actual)
@@ -34,22 +35,23 @@ public class Publicacion {
     public String toFileString() {
         // Formato: autor|fecha|hora|contenido|hashtags|menciones|ruta|tipo
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("HH:mm:ss");
-        return autor + "|" + 
-               fecha.toString() + "|" + 
-               hora.format(dtf) + "|" + 
-               contenido + "|" + 
-               hashtags + "|" + 
-               menciones + "|" + 
-               rutaImagen + "|" + 
-               tipoMultimedia;
+        return autor + "|"
+                + fecha.toString() + "|"
+                + hora.format(dtf) + "|"
+                + contenido + "|"
+                + hashtags + "|"
+                + menciones + "|"
+                + rutaImagen + "|"
+                + tipoMultimedia;
     }
 
     // --- MÉTODO ESTÁTICO PARA LEER DESDE ARCHIVO ---
     public static Publicacion fromFileString(String linea) {
         try {
             String[] datos = linea.split("\\|");
-            if (datos.length < 8) return null; // Validación básica
-
+            if (datos.length < 8) {
+                return null; // Validación básica
+            }
             Publicacion p = new Publicacion();
             p.autor = datos[0];
             p.fecha = LocalDate.parse(datos[1]);
@@ -59,7 +61,7 @@ public class Publicacion {
             p.menciones = datos[5];
             p.rutaImagen = datos[6];
             p.tipoMultimedia = datos[7];
-            
+
             return p;
         } catch (Exception e) {
             System.out.println("Error al parsear publicación: " + e.getMessage());
@@ -99,14 +101,41 @@ public class Publicacion {
     public String getTipoMultimedia() {
         return tipoMultimedia;
     }
-    
+
     // --- SETTERS (Necesarios para fromFileString si no se usara el constructor vacío) ---
-    public void setAutor(String autor) { this.autor = autor; }
-    public void setContenido(String contenido) { this.contenido = contenido; }
-    public void setFecha(LocalDate fecha) { this.fecha = fecha; }
-    public void setHora(LocalTime hora) { this.hora = hora; }
-    public void setHashtags(String hashtags) { this.hashtags = hashtags; }
-    public void setMenciones(String menciones) { this.menciones = menciones; }
-    public void setRutaImagen(String rutaImagen) { this.rutaImagen = rutaImagen; }
-    public void setTipoMultimedia(String tipoMultimedia) { this.tipoMultimedia = tipoMultimedia; }
+    public void setAutor(String autor) {
+        this.autor = autor;
+    }
+
+    public void setContenido(String contenido) {
+        this.contenido = contenido;
+    }
+
+    public void setFecha(LocalDate fecha) {
+        this.fecha = fecha;
+    }
+
+    public void setHora(LocalTime hora) {
+        this.hora = hora;
+    }
+
+    public void setHashtags(String hashtags) {
+        this.hashtags = hashtags;
+    }
+
+    public void setMenciones(String menciones) {
+        this.menciones = menciones;
+    }
+
+    public void setRutaImagen(String rutaImagen) {
+        this.rutaImagen = rutaImagen;
+    }
+
+    public void setTipoMultimedia(String tipoMultimedia) {
+        this.tipoMultimedia = tipoMultimedia;
+    }
+
+    public String getHoraFormateada() {
+        return this.hora.format(DateTimeFormatter.ofPattern("HH:mm"));
+    }
 }

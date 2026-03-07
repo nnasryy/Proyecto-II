@@ -1,6 +1,7 @@
 package gui;
 
 import enums.TipoCuenta;
+import instagram.Publicacion;
 import instagram.Sistema;
 import instagram.Usuario;
 
@@ -10,6 +11,8 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.*;
+import java.io.File;
+import java.util.ArrayList;
 
 public class VentanaPrincipal extends JFrame {
 
@@ -598,12 +601,256 @@ public class VentanaPrincipal extends JFrame {
         }
     }
 
+       // ---------------------------------------------------------
+    // VISTA 3: FEED (ESQUELETO DESKTOP)
+    // ---------------------------------------------------------
     private void cargarVistaFeed() {
-        // Aquí iría el código del Feed que vimos antes
         getContentPane().removeAll();
-        JLabel lbl = new JLabel("BIENVENIDO AL FEED", SwingConstants.CENTER);
-        lbl.setFont(new Font("Arial", Font.BOLD, 30));
-        add(lbl);
-        revalidate(); repaint();
+        setLayout(new BorderLayout()); // Estructura principal Desktop
+        getContentPane().setBackground(COLOR_FONDO);
+
+        // --- 1. SIDEBAR (Barra lateral izquierda) ---
+        JPanel panelSidebar = new JPanel();
+        panelSidebar.setPreferredSize(new Dimension(250, 768));
+        panelSidebar.setBackground(Color.WHITE);
+        panelSidebar.setLayout(new BoxLayout(panelSidebar, BoxLayout.Y_AXIS));
+        panelSidebar.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(220, 220, 220)));
+
+        JLabel lblLogoSide = new JLabel("InstaRAIZ");
+        lblLogoSide.setFont(new Font("Arial", Font.BOLD, 24));
+        lblLogoSide.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        // Botones del menú
+        JButton btnInicio = crearBotonSidebar("Inicio", "🏠");
+        JButton btnNuevo = crearBotonSidebar("Crear", "➕");
+        JButton btnPerfil = crearBotonSidebar("Mi Perfil", "👤");
+        JButton btnCerrarSesion = crearBotonSidebar("Cerrar Sesión", "➡️");
+
+        // Espaciado y agregado
+        panelSidebar.add(Box.createVerticalStrut(20));
+        panelSidebar.add(lblLogoSide);
+        panelSidebar.add(Box.createVerticalStrut(30));
+        panelSidebar.add(btnInicio);
+        panelSidebar.add(btnNuevo);
+        panelSidebar.add(btnPerfil);
+        panelSidebar.add(Box.createVerticalGlue()); // Empuja abajo lo que sigue
+        panelSidebar.add(btnCerrarSesion);
+        panelSidebar.add(Box.createVerticalStrut(20));
+
+        // --- 2. CONTENEDOR DEL FEED (Centro) ---
+        JPanel panelContenido = new JPanel();
+        panelContenido.setBackground(COLOR_FONDO);
+        panelContenido.setLayout(new BoxLayout(panelContenido, BoxLayout.Y_AXIS)); 
+
+        JScrollPane scrollPane = new JScrollPane(panelContenido);
+        scrollPane.setBorder(null);
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16); // Scroll más suave
+
+        // --- 3. CARGAR PUBLICACIONES REALES ---
+        ArrayList<Publicacion> listaPosts = sistema.getTimeline();
+        
+        if (listaPosts.isEmpty()) {
+            JLabel lblVacio = new JLabel("No hay publicaciones aún. ¡Sigue a alguien o crea un post!");
+            lblVacio.setAlignmentX(Component.CENTER_ALIGNMENT);
+            lblVacio.setFont(new Font("Arial", Font.ITALIC, 14));
+            panelContenido.add(Box.createVerticalStrut(200));
+            panelContenido.add(lblVacio);
+        } else {
+            for (Publicacion p : listaPosts) {
+                JPanel panelPost = crearPanelPost(p);
+                panelContenido.add(panelPost);
+                panelContenido.add(Box.createVerticalStrut(15)); // Espacio entre posts
+            }
+        }
+
+        // --- 4. ENSAMBLAR VENTANA ---
+        add(panelSidebar, BorderLayout.WEST);
+        add(scrollPane, BorderLayout.CENTER);
+
+        // --- 5. EVENTOS ---
+        btnCerrarSesion.addActionListener(e -> {
+            sistema.logout();
+            inicializarComponentesLogin();
+        });
+        
+        btnNuevo.addActionListener(e -> {
+            abrirDialogoNuevaPublicacion();
+        });
+
+        revalidate();
+        repaint();
+    }
+    
+    // Método auxiliar para crear botones del Sidebar
+    private JButton crearBotonSidebar(String texto, String icono) {
+        JButton btn = new JButton(icono + "  " + texto);
+        btn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        btn.setMaximumSize(new Dimension(220, 40));
+        btn.setFont(new Font("Arial", Font.PLAIN, 14));
+        btn.setBorderPainted(false);
+        btn.setBackground(Color.WHITE);
+        btn.setFocusPainted(false);
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        return btn;
+    }
+    
+    // Método para dibujar un Post individual
+    private JPanel crearPanelPost(Publicacion p) {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BorderLayout());
+        panel.setBackground(Color.WHITE);
+        panel.setMaximumSize(new Dimension(600, 700)); // Ancho fijo Desktop
+        
+        // Borde suave
+        panel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createEmptyBorder(10, 10, 10, 10),
+                BorderFactory.createLineBorder(new Color(230, 230, 230))
+        ));
+
+        // A. HEADER (Foto Perfil + Username)
+        JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        header.setBackground(Color.WHITE);
+        
+        JLabel lblFoto = new JLabel();
+        lblFoto.setPreferredSize(new Dimension(40, 40));
+        try {
+            // Intentar cargar foto del autor si existe
+            ImageIcon icono = new ImageIcon(getClass().getResource("/images/default_profile.png"));
+            // Si tuvieras la ruta real: new ImageIcon(p.getRutaFotoAutor())
+            lblFoto.setIcon(new ImageIcon(icono.getImage().getScaledInstance(40, 40, Image.SCALE_SMOOTH)));
+        } catch (Exception e) {
+            lblFoto.setText("😎");
+        }
+        
+        JLabel lblUser = new JLabel(p.getAutor());
+        lblUser.setFont(new Font("Arial", Font.BOLD, 14));
+        
+        header.add(lblFoto);
+        header.add(lblUser);
+
+        // B. IMAGEN DEL POST
+        JLabel lblImagen = new JLabel();
+        lblImagen.setPreferredSize(new Dimension(600, 500)); 
+        lblImagen.setHorizontalAlignment(SwingConstants.CENTER);
+        lblImagen.setBackground(Color.LIGHT_GRAY);
+        lblImagen.setOpaque(true);
+        
+        // Intentar cargar la imagen del post
+        try {
+            if (p.getRutaImagen() != null && !p.getRutaImagen().isEmpty()) {
+                File f = new File(p.getRutaImagen());
+                if(f.exists()) {
+                    ImageIcon icono = new ImageIcon(p.getRutaImagen());
+                    Image img = icono.getImage().getScaledInstance(600, 500, Image.SCALE_SMOOTH);
+                    lblImagen.setIcon(new ImageIcon(img));
+                    lblImagen.setText(null);
+                } else {
+                    lblImagen.setText("Imagen no encontrada");
+                }
+            } else {
+                lblImagen.setText("Sin Imagen");
+            }
+        } catch (Exception e) {
+            lblImagen.setText("Error img");
+        }
+
+        // C. CONTENIDO TEXTO
+        JPanel footer = new JPanel();
+        footer.setLayout(new BoxLayout(footer, BoxLayout.Y_AXIS));
+        footer.setBackground(Color.WHITE);
+        footer.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        
+        String textoMostrar = "<html><b>" + p.getAutor() + "</b> " + p.getContenido() + "</html>";
+        JLabel lblContenido = new JLabel(textoMostrar);
+        lblContenido.setFont(new Font("Arial", Font.PLAIN, 13));
+        
+        JLabel lblFecha = new JLabel(p.getFecha().toString() + " " + p.getHoraFormateada());
+        lblFecha.setForeground(COLOR_FONT);
+        lblFecha.setFont(new Font("Arial", Font.ITALIC, 11));
+
+        footer.add(lblContenido);
+        footer.add(lblFecha);
+
+        // Ensamblar Post
+        panel.add(header, BorderLayout.NORTH);
+        panel.add(lblImagen, BorderLayout.CENTER);
+        panel.add(footer, BorderLayout.SOUTH);
+
+        return panel;
+    }
+    
+    // ---------------------------------------------------------
+    // DIÁLOGO: CREAR NUEVA PUBLICACIÓN
+    // ---------------------------------------------------------
+    private void abrirDialogoNuevaPublicacion() {
+        JDialog dialog = new JDialog(this, "Nueva Publicación", true);
+        dialog.setSize(450, 400);
+        dialog.setLocationRelativeTo(this);
+        dialog.setLayout(new BorderLayout());
+        dialog.getContentPane().setBackground(COLOR_FONDO);
+
+        // Panel Superior (Imagen)
+        JPanel panelImg = new JPanel();
+        panelImg.setBackground(COLOR_FONDO);
+        JButton btnSeleccionar = new JButton("Seleccionar Imagen");
+        JLabel lblRuta = new JLabel("Ninguna imagen seleccionada");
+        
+        // Panel Central (Texto)
+        JTextArea txtContenido = new JTextArea();
+        txtContenido.setLineWrap(true);
+        txtContenido.setWrapStyleWord(true);
+        txtContenido.setFont(new Font("Arial", Font.PLAIN, 13));
+        JScrollPane scrollTxt = new JScrollPane(txtContenido);
+        scrollTxt.setBorder(BorderFactory.createTitledBorder("Contenido (Max 220 chars)"));
+
+        // Panel Inferior (Botones)
+        JPanel panelBotones = new JPanel();
+        JButton btnPublicar = new JButton("Publicar");
+        JButton btnCancelar = new JButton("Cancelar");
+        panelBotones.add(btnPublicar);
+        panelBotones.add(btnCancelar);
+
+        // Ruta imagen temporal
+        final String[] rutaSeleccionada = {""};
+
+        btnSeleccionar.addActionListener(e -> {
+            JFileChooser fc = new JFileChooser();
+            int res = fc.showOpenDialog(this);
+            if (res == JFileChooser.APPROVE_OPTION) {
+                rutaSeleccionada[0] = fc.getSelectedFile().getAbsolutePath();
+                lblRuta.setText(fc.getSelectedFile().getName());
+            }
+        });
+
+        btnPublicar.addActionListener(e -> {
+            String texto = txtContenido.getText();
+            if (texto.isEmpty() || rutaSeleccionada[0].isEmpty()) {
+                JOptionPane.showMessageDialog(dialog, "Debes escribir algo y seleccionar una imagen.");
+                return;
+            }
+            
+            // Hashtags y menciones simulados (podrías parsearlos del texto)
+            boolean exito = sistema.crearPublicacion(texto, rutaSeleccionada[0], "", "");
+            
+            if (exito) {
+                JOptionPane.showMessageDialog(dialog, "¡Publicado con éxito!");
+                dialog.dispose();
+                cargarVistaFeed(); // Recargar el feed para ver el nuevo post
+            } else {
+                JOptionPane.showMessageDialog(dialog, "Error al guardar la publicación.");
+            }
+        });
+
+        btnCancelar.addActionListener(e -> dialog.dispose());
+
+        panelImg.add(btnSeleccionar);
+        panelImg.add(lblRuta);
+
+        dialog.add(panelImg, BorderLayout.NORTH);
+        dialog.add(scrollTxt, BorderLayout.CENTER);
+        dialog.add(panelBotones, BorderLayout.SOUTH);
+
+        dialog.setVisible(true);
     }
 }
