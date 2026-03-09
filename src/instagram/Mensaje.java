@@ -4,63 +4,66 @@
  */
 package instagram;
 
-import enums.EstadoMensaje;
-import enums.TipoMensaje;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 
-/**
- *
- * @author nasry
- */
 public class Mensaje {
-
     private String emisor;
     private String receptor;
-    private String contenido;
     private LocalDate fecha;
     private LocalTime hora;
-    private TipoMensaje tipoMensaje;
-    private EstadoMensaje estadoMensaje;
+    private String contenido;
+    private String tipo; // "TEXTO" o "STICKER"
+    private String estado; // "LEIDO" o "NO_LEIDO"
 
-    public Mensaje(String emisor, String receptor, String contenido, LocalDate fecha, LocalTime hora, TipoMensaje tipoMensaje) {
+    public Mensaje(String emisor, String receptor, String contenido, String tipo) {
         this.emisor = emisor;
         this.receptor = receptor;
         this.contenido = contenido;
+        this.tipo = tipo;
         this.fecha = LocalDate.now();
         this.hora = LocalTime.now();
-        this.tipoMensaje = tipoMensaje;
+        this.estado = "NO_LEIDO";
     }
 
-    public String getEmisor() {
-        return emisor;
+    // Constructor vacío para lectura
+    public Mensaje() {}
+
+    // Método para leer desde archivo
+    public static Mensaje fromFileString(String linea) {
+        try {
+            String[] datos = linea.split("\\|");
+            if (datos.length < 7) return null;
+            
+            Mensaje m = new Mensaje();
+            m.emisor = datos[0];
+            m.receptor = datos[1];
+            m.fecha = LocalDate.parse(datos[2]);
+            m.hora = LocalTime.parse(datos[3], DateTimeFormatter.ofPattern("HH:mm:ss"));
+            m.contenido = datos[4];
+            m.tipo = datos[5];
+            m.estado = datos[6];
+            return m;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
-    public String getReceptor() {
-        return receptor;
+    public String toFileString() {
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("HH:mm:ss");
+        return emisor + "|" + receptor + "|" + fecha + "|" + hora.format(dtf) + "|" + contenido + "|" + tipo + "|" + estado;
     }
 
-    public String getContenido() {
-        return contenido;
-    }
-
-    public LocalDate getFecha() {
-        return fecha;
-    }
-
-    public LocalTime getHora() {
-        return hora;
-    }
-
-    public TipoMensaje getTipoMensaje() {
-        return tipoMensaje;
-    }
-
-    public EstadoMensaje getEstadoMensaje() {
-        return estadoMensaje;
-    }
-
-
+    // Getters necesarios
+    public String getEmisor() { return emisor; }
+    public String getReceptor() { return receptor; }
+    public String getContenido() { return contenido; }
+    public String getTipo() { return tipo; }
+    public String getEstado() { return estado; }
+    public void setEstado(String estado) { this.estado = estado; }
     
-    
+    public String getHoraFormateada() {
+        return hora.format(DateTimeFormatter.ofPattern("HH:mm"));
+    }
 }

@@ -333,4 +333,245 @@ public Usuario buscarUsuario(String username) {
             e.printStackTrace();
         }
     }
+        // ---------------------------
+    // NUEVO: OBTENER PUBLICACIONES DE UN USUARIO ESPECÍFICO
+    // ---------------------------
+    public ArrayList<Publicacion> getPublicacionesDeUsuario(String username) {
+        ArrayList<Publicacion> lista = new ArrayList<>();
+        String rutaInsta = RUTA_RAIZ + "/" + username + "/insta.ins";
+        File archivo = new File(rutaInsta);
+        
+        if (archivo.exists()) {
+            try (Scanner sc = new Scanner(archivo)) {
+                while (sc.hasNextLine()) {
+                    String linea = sc.nextLine();
+                    if (!linea.trim().isEmpty()) {
+                        Publicacion p = Publicacion.fromFileString(linea);
+                        if (p != null) lista.add(p);
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        // Ordenar de más reciente a antigua
+        lista.sort(Comparator.comparing(Publicacion::getFecha).thenComparing(Publicacion::getHora).reversed());
+        return lista;
+    }
+
+    // ---------------------------
+    // NUEVO: CONTAR LÍNEAS EN UN ARCHIVO (Followers/Following)
+    // ---------------------------
+    private int contarLineasArchivo(String ruta) {
+        File archivo = new File(ruta);
+        if (!archivo.exists()) return 0;
+        
+        int count = 0;
+        try (Scanner sc = new Scanner(archivo)) {
+            while (sc.hasNextLine()) {
+                sc.nextLine();
+                count++;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return count;
+    }
+
+    public int getCantidadFollowers(String username) {
+        return contarLineasArchivo(RUTA_RAIZ + "/" + username + "/followers.ins");
+    }
+
+    public int getCantidadFollowing(String username) {
+        return contarLineasArchivo(RUTA_RAIZ + "/" + username + "/following.ins");
+    }
+    
+    public int getCantidadPosts(String username) {
+        return getPublicacionesDeUsuario(username).size();
+    }
+
+    // Método para verificar si ya sigo a alguien
+    public boolean yaLoSigo(String usernameObjetivo) {
+        if (usuarioActual == null) return false;
+        String rutaFollowing = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins";
+        return verificarEnArchivo(rutaFollowing, usernameObjetivo);
+    }
+        // ---------------------------
+    // NUEVO: BUSCAR USUARIOS
+    // ---------------------------
+    public ArrayList<Usuario> buscarUsuarios(String criterio) {
+        ArrayList<Usuario> resultados = new ArrayList<>();
+        if (criterio == null || criterio.isEmpty()) return resultados;
+
+        try (Scanner sc = new Scanner(new File(RUTA_USERS))) {
+            while (sc.hasNextLine()) {
+                String linea = sc.nextLine();
+                String[] datos = linea.split("\\|");
+                
+                String usernameArchivo = datos[0];
+                EstadoCuenta estado = EstadoCuenta.valueOf(datos[8]);
+
+                // Filtros:
+                // 1. Que contenga el texto (ignorando mayúsculas/minúsculas)
+                // 2. Que no sea yo mismo
+                // 3. Que la cuenta esté ACTIVA
+                if (usernameArchivo.toLowerCase().contains(criterio.toLowerCase()) 
+                    && !usernameArchivo.equals(usuarioActual.getUsername())
+                    && estado == EstadoCuenta.ACTIVO) {
+                    
+                    // Reconstruir usuario (solo datos básicos para mostrar)
+                    String nombre = datos[2];
+                    char genero = datos[3].charAt(0);
+                    int edad = Integer.parseInt(datos[4]);
+                    String foto = datos[5];
+                    LocalDate fecha = LocalDate.parse(datos[6]);
+                    TipoCuenta tipo = TipoCuenta.valueOf(datos[7]);
+                    
+                    Usuario u = new Usuario(usernameArchivo, "", nombre, genero, edad, foto, fecha, tipo, estado);
+                    resultados.add(u);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return resultados;
+    }
+    
+        // ---------------------------
+    // INBOX: LÓGICA DE MENSAJERÍA
+    // ---------------------------
+
+    // Verificar si puedo enviar mensaje (Reglas de privacidad)
+    public boolean puedeEnviarMensaje(String usernameReceptor) {
+        Usuario receptor = buscarUsuario(usernameReceptor);
+        if (receptor == null) return false;
+
+        // 1. Si su perfil es público -> PERMITIDO
+        if (receptor.getTipoCuenta() == TipoCuenta.PUBLICA) return true;
+
+        // 2. Si es privado -> Verificar amistad (mutuo seguimiento)
+        // Asumimos que "amigo" es cuando ambos se siguen.
+        boolean yoLoSigo = verificarEnArchivo(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins", usernameReceptor);
+        boolean elMeSigue = verificarEnArchivo(RUTA_RAIZ + "/" + usernameReceptor + "/followers.ins", usuarioActual.getUsername());
+        
+        return yoLoSigo && elMeSigue;
+    }
+
+    public boolean enviarMensaje(String receptorUsername, String contenido, String tipo) {
+        if (usuarioActual == null) return false;
+        
+        Mensaje nuevo = new Mensaje(usuarioActual.getUsername(), receptorUsername, contenido, tipo);
+
+        // Guardar en el inbox del RECEPTOR (para que lo lea)
+        String rutaInboxReceptor = RUTA_RAIZ + "/" + receptorUsername + "/inbox.ins";
+        try (FileWriter fw = new FileWriter(rutaInboxReceptor, true)) {
+            fw.write(nuevo.toFileString() + "\n");
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+        
+        // Opcional: Guardar también una copia en mi inbox (como "enviados") si quisieras ver tu historial
+        // Por simplicidad, el PDF sugiere que inbox.ins guarda los mensajes.
+        // Para ver la conversación completa, leeremos ambos archivos o buscaremos por emisor/receptor.
+        // Para este proyecto, guardaremos en AMBOS para facilitar la lectura de la conversación.
+        String rutaInboxMio = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins";
+        try (FileWriter fw = new FileWriter(rutaInboxMio, true)) {
+             // Lo guardo como leído porque yo lo envié
+             nuevo.setEstado("LEIDO"); 
+             fw.write(nuevo.toFileString() + "\n");
+        } catch (IOException e) {
+             e.printStackTrace();
+        }
+
+        return true;
+    }
+
+    public ArrayList<Mensaje> getConversacion(String otroUsuario) {
+        ArrayList<Mensaje> conversacion = new ArrayList<>();
+        String rutaInbox = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins";
+        File archivo = new File(rutaInbox);
+        
+        if (!archivo.exists()) return conversacion;
+
+        try (Scanner sc = new Scanner(archivo)) {
+            while (sc.hasNextLine()) {
+                String linea = sc.nextLine();
+                Mensaje m = Mensaje.fromFileString(linea);
+                // Filtrar: Mensajes donde yo soy emisor o receptor con este usuario
+                if (m != null) {
+                    if ( (m.getEmisor().equals(otroUsuario) && m.getReceptor().equals(usuarioActual.getUsername())) ||
+                         (m.getEmisor().equals(usuarioActual.getUsername()) && m.getReceptor().equals(otroUsuario)) ) {
+                        conversacion.add(m);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        
+        // Ordenar por fecha/hora (opcional, simple)
+        // conversacion.sort(...); 
+        
+        return conversacion;
+    }
+    
+    // Método para obtener lista de personas con las que he hablado (Preview Inbox)
+    public ArrayList<String> getChatsRecientes() {
+        ArrayList<String> usuarios = new ArrayList<>();
+        String rutaInbox = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins";
+        File archivo = new File(rutaInbox);
+        
+        if (!archivo.exists()) return usuarios;
+
+        try (Scanner sc = new Scanner(archivo)) {
+            while (sc.hasNextLine()) {
+                Mensaje m = Mensaje.fromFileString(sc.nextLine());
+                if (m != null) {
+                    String otro = m.getEmisor().equals(usuarioActual.getUsername()) ? m.getReceptor() : m.getEmisor();
+                    if (!usuarios.contains(otro)) {
+                        usuarios.add(otro);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return usuarios;
+    }
+    
+    // Marcar mensajes como leídos
+    public void marcarComoLeido(String otroUsuario) {
+        String rutaInbox = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins";
+        File archivo = new File(rutaInbox);
+        if (!archivo.exists()) return;
+
+        ArrayList<String> lineasActualizadas = new ArrayList<>();
+        
+        try (Scanner sc = new Scanner(archivo)) {
+            while (sc.hasNextLine()) {
+                String linea = sc.nextLine();
+                Mensaje m = Mensaje.fromFileString(linea);
+                if (m != null && m.getEmisor().equals(otroUsuario) && m.getEstado().equals("NO_LEIDO")) {
+                    m.setEstado("LEIDO");
+                    lineasActualizadas.add(m.toFileString());
+                } else {
+                    lineasActualizadas.add(linea);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        
+        // Reescribir archivo
+        try (FileWriter fw = new FileWriter(rutaInbox, false)) {
+            for (String l : lineasActualizadas) {
+                fw.write(l + "\n");
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    
 }
