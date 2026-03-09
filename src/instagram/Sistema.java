@@ -151,7 +151,6 @@ public Usuario buscarUsuario(String username) {
             String linea = sc.nextLine();
             String[] datos = linea.split("\\|");
             if (datos[0].equals(username)) {
-                // Reconstruir usuario básico para validación
                 String nombre = datos[2];
                 char genero = datos[3].charAt(0);
                 int edad = Integer.parseInt(datos[4]);
@@ -282,7 +281,7 @@ public Usuario buscarUsuario(String username) {
 
         if (usuarioActual == null) return timeline;
 
-        // 1. Mis propias publicaciones
+        // 1. Mis publicaciones
         leerPublicacionesUsuario(usuarioActual.getUsername(), timeline);
 
         // 2. Publicaciones de quienes sigo
@@ -354,7 +353,7 @@ public Usuario buscarUsuario(String username) {
                 e.printStackTrace();
             }
         }
-        // Ordenar de más reciente a antigua
+
         lista.sort(Comparator.comparing(Publicacion::getFecha).thenComparing(Publicacion::getHora).reversed());
         return lista;
     }
@@ -411,15 +410,12 @@ public Usuario buscarUsuario(String username) {
                 String usernameArchivo = datos[0];
                 EstadoCuenta estado = EstadoCuenta.valueOf(datos[8]);
 
-                // Filtros:
-                // 1. Que contenga el texto (ignorando mayúsculas/minúsculas)
-                // 2. Que no sea yo mismo
-                // 3. Que la cuenta esté ACTIVA
+             
                 if (usernameArchivo.toLowerCase().contains(criterio.toLowerCase()) 
                     && !usernameArchivo.equals(usuarioActual.getUsername())
                     && estado == EstadoCuenta.ACTIVO) {
                     
-                    // Reconstruir usuario (solo datos básicos para mostrar)
+     
                     String nombre = datos[2];
                     char genero = datos[3].charAt(0);
                     int edad = Integer.parseInt(datos[4]);
@@ -441,16 +437,13 @@ public Usuario buscarUsuario(String username) {
     // INBOX: LÓGICA DE MENSAJERÍA
     // ---------------------------
 
-    // Verificar si puedo enviar mensaje (Reglas de privacidad)
+    // Verificar si puedo enviar mensaje
     public boolean puedeEnviarMensaje(String usernameReceptor) {
         Usuario receptor = buscarUsuario(usernameReceptor);
         if (receptor == null) return false;
 
-        // 1. Si su perfil es público -> PERMITIDO
         if (receptor.getTipoCuenta() == TipoCuenta.PUBLICA) return true;
 
-        // 2. Si es privado -> Verificar amistad (mutuo seguimiento)
-        // Asumimos que "amigo" es cuando ambos se siguen.
         boolean yoLoSigo = verificarEnArchivo(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins", usernameReceptor);
         boolean elMeSigue = verificarEnArchivo(RUTA_RAIZ + "/" + usernameReceptor + "/followers.ins", usuarioActual.getUsername());
         
@@ -462,7 +455,6 @@ public Usuario buscarUsuario(String username) {
         
         Mensaje nuevo = new Mensaje(usuarioActual.getUsername(), receptorUsername, contenido, tipo);
 
-        // Guardar en el inbox del RECEPTOR (para que lo lea)
         String rutaInboxReceptor = RUTA_RAIZ + "/" + receptorUsername + "/inbox.ins";
         try (FileWriter fw = new FileWriter(rutaInboxReceptor, true)) {
             fw.write(nuevo.toFileString() + "\n");
@@ -470,14 +462,8 @@ public Usuario buscarUsuario(String username) {
             e.printStackTrace();
             return false;
         }
-        
-        // Opcional: Guardar también una copia en mi inbox (como "enviados") si quisieras ver tu historial
-        // Por simplicidad, el PDF sugiere que inbox.ins guarda los mensajes.
-        // Para ver la conversación completa, leeremos ambos archivos o buscaremos por emisor/receptor.
-        // Para este proyecto, guardaremos en AMBOS para facilitar la lectura de la conversación.
         String rutaInboxMio = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins";
         try (FileWriter fw = new FileWriter(rutaInboxMio, true)) {
-             // Lo guardo como leído porque yo lo envié
              nuevo.setEstado("LEIDO"); 
              fw.write(nuevo.toFileString() + "\n");
         } catch (IOException e) {
@@ -498,7 +484,6 @@ public Usuario buscarUsuario(String username) {
             while (sc.hasNextLine()) {
                 String linea = sc.nextLine();
                 Mensaje m = Mensaje.fromFileString(linea);
-                // Filtrar: Mensajes donde yo soy emisor o receptor con este usuario
                 if (m != null) {
                     if ( (m.getEmisor().equals(otroUsuario) && m.getReceptor().equals(usuarioActual.getUsername())) ||
                          (m.getEmisor().equals(usuarioActual.getUsername()) && m.getReceptor().equals(otroUsuario)) ) {
@@ -510,13 +495,11 @@ public Usuario buscarUsuario(String username) {
             e.printStackTrace();
         }
         
-        // Ordenar por fecha/hora (opcional, simple)
-        // conversacion.sort(...); 
-        
+  
         return conversacion;
     }
     
-    // Método para obtener lista de personas con las que he hablado (Preview Inbox)
+    // Método para obtener lista de personas con las que he hablado 
     public ArrayList<String> getChatsRecientes() {
         ArrayList<String> usuarios = new ArrayList<>();
         String rutaInbox = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins";
@@ -562,8 +545,7 @@ public Usuario buscarUsuario(String username) {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        
-        // Reescribir archivo
+        //Tener que sobreescribir el archivo
         try (FileWriter fw = new FileWriter(rutaInbox, false)) {
             for (String l : lineasActualizadas) {
                 fw.write(l + "\n");

@@ -9,6 +9,7 @@ import java.time.LocalDate;
  * @author nasry
  */
 public class Usuario {
+
     private String username;
     private String password;
     private String nombreCompleto;
@@ -18,19 +19,18 @@ public class Usuario {
     private String fotoPerfil;
     private TipoCuenta tipoCuenta;
     private EstadoCuenta estadoCuenta;
-    
-  
-    public Usuario(String username, String password, String nombreCompleto, 
-                   char genero, int edad, String fotoPerfil, 
-                   LocalDate fechaRegistro, TipoCuenta tipoCuenta, 
-                   EstadoCuenta estadoCuenta){
+
+    public Usuario(String username, String password, String nombreCompleto,
+            char genero, int edad, String fotoPerfil,
+            LocalDate fechaRegistro, TipoCuenta tipoCuenta,
+            EstadoCuenta estadoCuenta) {
         this.username = username;
         this.password = password;
         this.nombreCompleto = nombreCompleto;
         this.genero = genero;
         this.edad = edad;
         this.fotoPerfil = fotoPerfil;
-        this.fechaRegistro = fechaRegistro; // Se recibe por parámetro para poder leerla del archivo
+        this.fechaRegistro = fechaRegistro;
         this.tipoCuenta = tipoCuenta;
         this.estadoCuenta = estadoCuenta;
     }
@@ -71,5 +71,5 @@ public class Usuario {
     public String getFotoPerfil() {
         return fotoPerfil;
     }
-    
+
 }

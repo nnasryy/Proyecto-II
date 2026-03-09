@@ -14,8 +14,8 @@ public class Mensaje {
     private LocalDate fecha;
     private LocalTime hora;
     private String contenido;
-    private String tipo; // "TEXTO" o "STICKER"
-    private String estado; // "LEIDO" o "NO_LEIDO"
+    private String tipo;
+    private String estado; 
 
     public Mensaje(String emisor, String receptor, String contenido, String tipo) {
         this.emisor = emisor;

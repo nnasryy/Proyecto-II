@@ -6,16 +6,16 @@ import java.time.format.DateTimeFormatter;
 
 public class Publicacion {
 
-    private String autor; // Username
+    private String autor; 
     private String contenido;
     private LocalDate fecha;
     private LocalTime hora;
     private String hashtags;
     private String menciones;
     private String rutaImagen;
-    private String tipoMultimedia;      // CUADRADA, VERTICAL, HORIZONTAL
+    private String tipoMultimedia;   
 
-    // Constructor para crear NUEVAS publicaciones (usa fecha/hora actual)
+ 
     public Publicacion(String autor, String contenido, String rutaImagen, String hashtags, String menciones) {
         this.autor = autor;
         this.contenido = contenido;
@@ -27,13 +27,11 @@ public class Publicacion {
         this.menciones = menciones;
     }
 
-    // Constructor vacío (necesario para la lectura desde archivo)
     public Publicacion() {
     }
 
-    // Método para convertir la publicación a texto para guardar en archivo
     public String toFileString() {
-        // Formato: autor|fecha|hora|contenido|hashtags|menciones|ruta|tipo
+        // autor|fecha|hora|contenido|hashtags|menciones|ruta|tipo
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("HH:mm:ss");
         return autor + "|"
                 + fecha.toString() + "|"
@@ -50,7 +48,7 @@ public class Publicacion {
         try {
             String[] datos = linea.split("\\|");
             if (datos.length < 8) {
-                return null; // Validación básica
+                return null; 
             }
             Publicacion p = new Publicacion();
             p.autor = datos[0];
@@ -102,7 +100,7 @@ public class Publicacion {
         return tipoMultimedia;
     }
 
-    // --- SETTERS (Necesarios para fromFileString si no se usara el constructor vacío) ---
+    // --- SETTERS ---
     public void setAutor(String autor) {
         this.autor = autor;
     }
