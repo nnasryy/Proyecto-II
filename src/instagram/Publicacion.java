@@ -3,6 +3,7 @@ package instagram;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 
 public class Publicacion {
 
@@ -66,6 +67,14 @@ public class Publicacion {
             return null;
         }
     }
+    public ArrayList<String> extraerHashtags() {
+    ArrayList<String> lista = new ArrayList<>();
+    String[] palabras = contenido.split(" ");
+    for (String p : palabras) {
+        if (p.startsWith("#")) lista.add(p);
+    }
+    return lista;
+}
 
     // --- GETTERS ---
     public String getAutor() {

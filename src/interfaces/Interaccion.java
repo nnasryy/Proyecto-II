@@ -9,5 +9,7 @@ package interfaces;
  * @author nasry
  */
 public interface Interaccion {
+    void seguir(String username);
+    void dejarDeSeguir(String username);
     
 }

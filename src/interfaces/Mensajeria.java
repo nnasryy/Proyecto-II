@@ -4,10 +4,12 @@
  */
 package interfaces;
 
+import instagram.Mensaje;
+
 /**
  *
  * @author nasry
  */
 public interface Mensajeria {
-    
+    boolean enviarMensaje(Mensaje m);
 }

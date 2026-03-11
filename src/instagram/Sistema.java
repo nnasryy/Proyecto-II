@@ -433,11 +433,22 @@ public Usuario buscarUsuario(String username) {
         return resultados;
     }
     
-        // ---------------------------
+    // ---------------------------
     // INBOX: LÓGICA DE MENSAJERÍA
     // ---------------------------
 
-    // Verificar si puedo enviar mensaje
+    // Método genérico para guardar cualquier tipo de mensaje
+    public boolean guardarMensaje(Mensaje m) {
+        String rutaInboxReceptor = RUTA_RAIZ + "/" + m.getReceptor() + "/inbox.ins";
+        try (FileWriter fw = new FileWriter(rutaInboxReceptor, true)) {
+            // Polimorfismo: toFileString() hace lo correcto según sea Texto o Sticker
+            fw.write(m.toFileString() + "\n");
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
     public boolean puedeEnviarMensaje(String usernameReceptor) {
         Usuario receptor = buscarUsuario(usernameReceptor);
         if (receptor == null) return false;
@@ -453,18 +464,23 @@ public Usuario buscarUsuario(String username) {
     public boolean enviarMensaje(String receptorUsername, String contenido, String tipo) {
         if (usuarioActual == null) return false;
         
-        Mensaje nuevo = new Mensaje(usuarioActual.getUsername(), receptorUsername, contenido, tipo);
-
-        String rutaInboxReceptor = RUTA_RAIZ + "/" + receptorUsername + "/inbox.ins";
-        try (FileWriter fw = new FileWriter(rutaInboxReceptor, true)) {
-            fw.write(nuevo.toFileString() + "\n");
-        } catch (IOException e) {
-            e.printStackTrace();
-            return false;
+        Mensaje nuevo;
+        
+        // Fábrica de mensajes
+        if ("STICKER".equals(tipo)) {
+            nuevo = new MensajeSticker(usuarioActual.getUsername(), receptorUsername, contenido);
+        } else {
+            nuevo = new MensajeTexto(usuarioActual.getUsername(), receptorUsername, contenido);
         }
+
+        // Guardar en el receptor
+        guardarMensaje(nuevo);
+        
+        // Guardar en mi propio inbox (copia enviada)
+        // Forzamos estado LEIDO para mí mismo
+        nuevo.setEstado("LEIDO"); 
         String rutaInboxMio = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins";
         try (FileWriter fw = new FileWriter(rutaInboxMio, true)) {
-             nuevo.setEstado("LEIDO"); 
              fw.write(nuevo.toFileString() + "\n");
         } catch (IOException e) {
              e.printStackTrace();
@@ -483,6 +499,7 @@ public Usuario buscarUsuario(String username) {
         try (Scanner sc = new Scanner(archivo)) {
             while (sc.hasNextLine()) {
                 String linea = sc.nextLine();
+                // Usamos el método estático de la clase padre para decodificar
                 Mensaje m = Mensaje.fromFileString(linea);
                 if (m != null) {
                     if ( (m.getEmisor().equals(otroUsuario) && m.getReceptor().equals(usuarioActual.getUsername())) ||
@@ -494,12 +511,9 @@ public Usuario buscarUsuario(String username) {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        
-  
         return conversacion;
     }
     
-    // Método para obtener lista de personas con las que he hablado 
     public ArrayList<String> getChatsRecientes() {
         ArrayList<String> usuarios = new ArrayList<>();
         String rutaInbox = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins";
@@ -523,7 +537,6 @@ public Usuario buscarUsuario(String username) {
         return usuarios;
     }
     
-    // Marcar mensajes como leídos
     public void marcarComoLeido(String otroUsuario) {
         String rutaInbox = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins";
         File archivo = new File(rutaInbox);
@@ -545,7 +558,7 @@ public Usuario buscarUsuario(String username) {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        //Tener que sobreescribir el archivo
+        
         try (FileWriter fw = new FileWriter(rutaInbox, false)) {
             for (String l : lineasActualizadas) {
                 fw.write(l + "\n");
@@ -554,6 +567,4 @@ public Usuario buscarUsuario(String username) {
             e.printStackTrace();
         }
     }
-    
-    
 }

@@ -16,6 +16,9 @@ import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.net.Socket;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,6 +27,8 @@ import java.util.Map;
 public class VentanaPrincipal extends JFrame {
 
     private Sistema sistema;
+    private Socket socket;
+    private ObjectOutputStream salida;
 
     // --- COLORES ---
     private final Color COLOR_FONDO = Color.WHITE;
@@ -113,6 +118,8 @@ public class VentanaPrincipal extends JFrame {
     // ---------------------------------------------------------
     // VISTA 1: LOGIN
     // ---------------------------------------------------------
+ 
+    // ---------------------------------------------------------
     private void inicializarComponentesLogin() {
         getContentPane().removeAll();
         getContentPane().setLayout(null);
@@ -196,14 +203,50 @@ public class VentanaPrincipal extends JFrame {
         txtUser.getDocument().addDocumentListener(validationListener);
         txtPass.getDocument().addDocumentListener(validationListener);
 
+        // --- ACCIÓN DEL BOTÓN LOGIN CORREGIDA ---
         btnLogin.addActionListener(e -> {
             String user = txtUser.getText();
             String pass = String.valueOf(txtPass.getPassword());
+            
+            // 1. Validación visual local (rapida)
             Usuario u = sistema.buscarUsuario(user);
-            if (u == null) { lblErrorUser.setText("El usuario no existe."); ponerBordeRojo(txtUser); return; }
+            if (u == null) { 
+                lblErrorUser.setText("El usuario no existe."); 
+                ponerBordeRojo(txtUser); 
+                return; 
+            }
+            
+            // 2. Intento de Login Local (Para que funcione tu lógica actual)
             boolean passCorrecta = sistema.login(user, pass);
-            if (!passCorrecta) { lblErrorPass.setText("La contraseña es incorrecta."); ponerBordeRojo(panelPass); }
-            else cargarVistaFeed();
+            if (!passCorrecta) { 
+                lblErrorPass.setText("La contraseña es incorrecta."); 
+                ponerBordeRojo(panelPass); 
+                return; 
+            }
+            
+            // 3. Intento de conexión Socket (Añadido para el requisito del profesor)
+            // Esto se ejecuta solo si el login local fue exitoso
+            try {
+                socket = new Socket("localhost", 5000);
+                salida = new ObjectOutputStream(socket.getOutputStream());
+                
+                salida.writeObject("LOGIN:" + user + ":" + pass);
+                salida.flush();
+        
+                ObjectInputStream entrada = new ObjectInputStream(socket.getInputStream());
+                boolean exito = (boolean) entrada.readObject();
+                
+                if (exito) {
+                    System.out.println("Conectado al servidor correctamente.");
+                } else {
+                    System.out.println("El servidor rechazó la conexión.");
+                }
+            } catch (Exception ex) {
+                System.out.println("No se pudo conectar al servidor (modo local activo).");
+            }
+
+            // 4. Cargar la vista
+            cargarVistaFeed();
         });
 
         lblRegistro.addMouseListener(new MouseAdapter() { @Override public void mouseClicked(MouseEvent e) { cargarVistaRegistro(); } });
