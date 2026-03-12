@@ -1,5 +1,6 @@
 package gui;
 
+import enums.EstadoCuenta;
 import enums.TipoCuenta;
 import instagram.Mensaje;
 import instagram.Publicacion;
@@ -29,6 +30,7 @@ public class VentanaPrincipal extends JFrame {
     private Sistema sistema;
     private Socket socket;
     private ObjectOutputStream salida;
+    private Timer chatTimer;
 
     // --- COLORES ---
     private final Color COLOR_FONDO = Color.WHITE;
@@ -203,7 +205,7 @@ public class VentanaPrincipal extends JFrame {
         txtUser.getDocument().addDocumentListener(validationListener);
         txtPass.getDocument().addDocumentListener(validationListener);
 
-        // --- ACCIÓN DEL BOTÓN LOGIN CORREGIDA ---
+        // --- ACCIÓN DEL BOTÓN LOGIN ---
         btnLogin.addActionListener(e -> {
             String user = txtUser.getText();
             String pass = String.valueOf(txtPass.getPassword());
@@ -214,6 +216,17 @@ public class VentanaPrincipal extends JFrame {
                 lblErrorUser.setText("El usuario no existe."); 
                 ponerBordeRojo(txtUser); 
                 return; 
+            } 
+            if (u.getEstadoCuenta() == EstadoCuenta.DESACTIVADO) {
+                int opcion = JOptionPane.showConfirmDialog(this, 
+                    "Esta cuenta está desactivada. ¿Desea reactivarla?", 
+                    "Cuenta Inactiva", JOptionPane.YES_NO_OPTION);
+                
+                if (opcion == JOptionPane.YES_OPTION) {
+                    sistema.reactivarCuenta(user); // Actualiza el archivo
+                } else {
+                    return; // Detiene el proceso si no quiere reactivar
+                }
             }
             
             // 2. Intento de Login Local (Para que funcione tu lógica actual)
@@ -641,9 +654,50 @@ public class VentanaPrincipal extends JFrame {
             fila1.add(Box.createHorizontalStrut(20)); fila1.add(btnSeguir);
         } else {
             JButton btnEditar = new JButton("Editar Perfil"); btnEditar.setFont(new Font("Arial", Font.BOLD, 12)); btnEditar.setBackground(COLOR_FIELD);
-            fila1.add(Box.createHorizontalStrut(20)); fila1.add(btnEditar);
+            btnEditar.setFont(new Font("Arial", Font.BOLD, 12)); 
+            btnEditar.setBackground(COLOR_FIELD);
+            btnEditar.setBorderPainted(false);
+            btnEditar.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            
+            // 2. Botón Desactivar/Activar
+            JButton btnToggle = new JButton();
+            if (sistema.getUsuarioActual().getEstadoCuenta() == EstadoCuenta.ACTIVO) {
+                btnToggle.setText("Desactivar Cuenta");
+                btnToggle.setBackground(COLOR_ERROR); // Rojo
+            } else {
+                btnToggle.setText("Activar Cuenta");
+                btnToggle.setBackground(new Color(0, 150, 0)); // Verde
+            }
+            btnToggle.setForeground(Color.WHITE);
+            btnToggle.setFont(new Font("Arial", Font.BOLD, 12));
+            btnToggle.setBorderPainted(false);
+            btnToggle.setOpaque(true);
+            btnToggle.setFocusPainted(false);
+            btnToggle.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            
+            // Acción del botón Desactivar
+            btnToggle.addActionListener(ev -> {
+                int confirm = JOptionPane.showConfirmDialog(this, 
+                    "¿Seguro que desea desactivar su cuenta? No aparecerá en búsquedas.", 
+                    "Confirmar", JOptionPane.YES_NO_OPTION);
+                    
+                if (confirm == JOptionPane.YES_OPTION) {
+                    sistema.cambiarEstadoCuenta(EstadoCuenta.DESACTIVADO);
+                    sistema.logout(); // Cerramos sesión
+                    if(chatTimer != null) chatTimer.stop(); // Paramos timers
+                    inicializarComponentesLogin(); // Volvemos al login
+                }
+            });
+            fila1.add(Box.createHorizontalStrut(20)); 
+            fila1.add(btnEditar);
+            fila1.add(Box.createHorizontalStrut(10));
+            fila1.add(btnToggle);
         }
 
+        
+        
+        
+        
         JPanel fila2 = new JPanel(new FlowLayout(FlowLayout.LEFT)); fila2.setBackground(COLOR_FONDO);
         int posts = sistema.getCantidadPosts(usernameVisitar); int followers = sistema.getCantidadFollowers(usernameVisitar); int following = sistema.getCantidadFollowing(usernameVisitar);
         fila2.add(crearLabelStat(posts, "publicaciones")); fila2.add(Box.createHorizontalStrut(25)); fila2.add(crearLabelStat(followers, "seguidores")); fila2.add(Box.createHorizontalStrut(25)); fila2.add(crearLabelStat(following, "seguidos"));
@@ -740,41 +794,85 @@ public class VentanaPrincipal extends JFrame {
     // VISTA 5: BÚSQUEDA
     // ---------------------------------------------------------
     private void cargarVistaBusqueda() {
-        vistaActual = "Search"; // Definir vista
-        getContentPane().removeAll(); setLayout(new BorderLayout()); getContentPane().setBackground(COLOR_FONDO);
-        add(crearPanelSidebar(), BorderLayout.WEST); // Recrear sidebar
+        vistaActual = "Search";
+        getContentPane().removeAll();
+        setLayout(new BorderLayout());
+        getContentPane().setBackground(COLOR_FONDO);
+        add(crearPanelSidebar(), BorderLayout.WEST);
 
-        JPanel panelMain = new JPanel(new BorderLayout()); panelMain.setBackground(COLOR_FONDO); panelMain.setBorder(BorderFactory.createEmptyBorder(40, 40, 40, 40));
-        JPanel panelSearchBar = new JPanel(new BorderLayout()); panelSearchBar.setBackground(Color.WHITE);
-        panelSearchBar.setBorder(BorderFactory.createCompoundBorder(new LineBorder(new Color(220, 220, 220), 1, true), BorderFactory.createEmptyBorder(10, 15, 10, 15)));
-        JTextField txtBuscar = new JTextField(); txtBuscar.setFont(new Font("Arial", Font.PLAIN, 16)); txtBuscar.setBorder(null); txtBuscar.setText("Escribe un username..."); txtBuscar.setForeground(COLOR_PLACEHOLDER);
-        txtBuscar.addFocusListener(new FocusAdapter() { public void focusGained(FocusEvent e) { if (txtBuscar.getText().equals("Escribe un username...")) { txtBuscar.setText(""); txtBuscar.setForeground(Color.BLACK); } } public void focusLost(FocusEvent e) { if (txtBuscar.getText().isEmpty()) { txtBuscar.setText("Escribe un username..."); txtBuscar.setForeground(COLOR_PLACEHOLDER); } } });
-        JButton btnBuscar = new JButton("Buscar"); btnBuscar.setBackground(COLOR_BOTTON); btnBuscar.setForeground(Color.WHITE); btnBuscar.setFont(new Font("Arial", Font.BOLD, 12)); btnBuscar.setBorderPainted(false);
-        panelSearchBar.add(txtBuscar, BorderLayout.CENTER); panelSearchBar.add(btnBuscar, BorderLayout.EAST);
-        panelMain.add(panelSearchBar, BorderLayout.NORTH);
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBackground(COLOR_FONDO);
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(40, 40, 40, 40));
 
-        JPanel panelResultados = new JPanel(); panelResultados.setLayout(new BoxLayout(panelResultados, BoxLayout.Y_AXIS)); panelResultados.setBackground(COLOR_FONDO);
-        JScrollPane scrollResultados = new JScrollPane(panelResultados); scrollResultados.setBorder(null); scrollResultados.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER); personalizarScrollBar(scrollResultados);
-        panelMain.add(scrollResultados, BorderLayout.CENTER);
-        add(panelMain, BorderLayout.CENTER);
+        // Panel de búsqueda
+        JPanel searchPanel = new JPanel(new BorderLayout());
+        searchPanel.setBackground(Color.WHITE);
+        searchPanel.setBorder(new LineBorder(new Color(200, 200, 200), 1, true));
+        
+        JTextField txtBuscar = new JTextField();
+        txtBuscar.setFont(new Font("Arial", Font.PLAIN, 16));
+        txtBuscar.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
+        txtBuscar.setText("Buscar usuario o #hashtag...");
+        txtBuscar.setForeground(COLOR_PLACEHOLDER);
+        
+        JButton btnBuscar = new JButton("Buscar");
+        btnBuscar.setBackground(COLOR_BOTTON);
+        btnBuscar.setForeground(Color.WHITE);
+        
+        searchPanel.add(txtBuscar, BorderLayout.CENTER);
+        searchPanel.add(btnBuscar, BorderLayout.EAST);
+        mainPanel.add(searchPanel, BorderLayout.NORTH);
 
-        ActionListener accionBuscar = e -> {
-            String criterio = txtBuscar.getText();
-            if (criterio.isEmpty() || criterio.equals("Escribe un username...")) return;
-            panelResultados.removeAll();
-            ArrayList<Usuario> lista = sistema.buscarUsuarios(criterio);
-            if (lista.isEmpty()) {
-                JLabel lblNo = new JLabel("No se encontraron resultados."); lblNo.setAlignmentX(Component.CENTER_ALIGNMENT); lblNo.setFont(new Font("Arial", Font.ITALIC, 14)); lblNo.setForeground(COLOR_FONT);
-                panelResultados.add(Box.createVerticalStrut(50)); panelResultados.add(lblNo);
+        // Panel de resultados
+        JPanel resultsPanel = new JPanel();
+        resultsPanel.setLayout(new BoxLayout(resultsPanel, BoxLayout.Y_AXIS));
+        resultsPanel.setBackground(COLOR_FONDO);
+        
+        JScrollPane scroll = new JScrollPane(resultsPanel);
+        scroll.setBorder(null);
+        scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        mainPanel.add(scroll, BorderLayout.CENTER);
+
+        add(mainPanel, BorderLayout.CENTER);
+
+        // --- ACCIÓN DE BÚSQUEDA UNIFICADA ---
+        ActionListener buscarAction = e -> {
+            String query = txtBuscar.getText().trim();
+            if (query.isEmpty() || query.equals("Buscar usuario o #hashtag...")) return;
+            
+            resultsPanel.removeAll();
+            
+            // LÓGICA: Si empieza con # es Hashtag, si no es Usuario
+            if (query.startsWith("#")) {
+                ArrayList<Publicacion> posts = sistema.buscarPorHashtag(query);
+                if (posts.isEmpty()) {
+                    resultsPanel.add(new JLabel("No hay publicaciones con " + query));
+                } else {
+                    for (Publicacion p : posts) {
+                        resultsPanel.add(crearPanelPost(p)); // Reutilizas tu método de posts
+                        resultsPanel.add(Box.createVerticalStrut(10));
+                    }
+                }
             } else {
-                for (Usuario u : lista) { panelResultados.add(crearPanelResultadoUsuario(u)); panelResultados.add(Box.createVerticalStrut(10)); }
+                ArrayList<Usuario> users = sistema.buscarUsuarios(query);
+                if (users.isEmpty()) {
+                    resultsPanel.add(new JLabel("No se encontraron usuarios."));
+                } else {
+                    for (Usuario u : users) {
+                        resultsPanel.add(crearPanelResultadoUsuario(u)); // Reutilizas tu método de usuarios
+                    }
+                }
             }
-            panelResultados.revalidate(); panelResultados.repaint();
+            resultsPanel.revalidate();
+            resultsPanel.repaint();
         };
-        btnBuscar.addActionListener(accionBuscar); txtBuscar.addActionListener(accionBuscar);
-        revalidate(); repaint();
-    }
 
+        btnBuscar.addActionListener(buscarAction);
+        txtBuscar.addActionListener(buscarAction); // Enter también busca
+
+        revalidate();
+        repaint();
+    }
     private JPanel crearPanelResultadoUsuario(Usuario u) {
         JPanel panel = new JPanel(new BorderLayout()); panel.setBackground(Color.WHITE); panel.setMaximumSize(new Dimension(600, 60));
         panel.setBorder(BorderFactory.createCompoundBorder(new LineBorder(new Color(230, 230, 230)), BorderFactory.createEmptyBorder(10, 10, 10, 10)));
@@ -789,35 +887,70 @@ public class VentanaPrincipal extends JFrame {
         panel.add(info, BorderLayout.WEST); panel.add(btnVer, BorderLayout.EAST);
         return panel;
     }
-
     // ---------------------------------------------------------
-    // VISTA 6: INBOX
+    // VISTA 6: INBOX (CON CHAT LIVE)
     // ---------------------------------------------------------
     private void cargarVistaInbox() {
-        vistaActual = "Messages"; // Definir vista
-        getContentPane().removeAll(); setLayout(new BorderLayout()); getContentPane().setBackground(COLOR_FONDO);
-        add(crearPanelSidebar(), BorderLayout.WEST); // Recrear sidebar
+        vistaActual = "Messages";
+        // Detenemos cualquier timer anterior si venimos de otro chat
+        if(chatTimer != null) chatTimer.stop(); 
+        
+        getContentPane().removeAll(); 
+        setLayout(new BorderLayout()); 
+        getContentPane().setBackground(COLOR_FONDO);
+        add(crearPanelSidebar(), BorderLayout.WEST);
 
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT); splitPane.setDividerLocation(250); splitPane.setBorder(null); splitPane.setBackground(COLOR_FONDO);
-        JPanel panelLista = new JPanel(new BorderLayout()); panelLista.setBackground(Color.WHITE); panelLista.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(220, 220, 220)));
-        JLabel lblTituloInbox = new JLabel("Mensajes", SwingConstants.CENTER); lblTituloInbox.setFont(new Font("Arial", Font.BOLD, 18)); lblTituloInbox.setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT); 
+        splitPane.setDividerLocation(250); 
+        splitPane.setBorder(null); 
+        splitPane.setBackground(COLOR_FONDO);
+        
+        // --- Panel Izquierdo: Lista de Chats ---
+        JPanel panelLista = new JPanel(new BorderLayout()); 
+        panelLista.setBackground(Color.WHITE); 
+        panelLista.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(220, 220, 220)));
+        
+        JLabel lblTituloInbox = new JLabel("Mensajes", SwingConstants.CENTER); 
+        lblTituloInbox.setFont(new Font("Arial", Font.BOLD, 18)); 
+        lblTituloInbox.setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
         panelLista.add(lblTituloInbox, BorderLayout.NORTH);
-        DefaultListModel<String> modelChats = new DefaultListModel<>(); JList<String> listaChats = new JList<>(modelChats); listaChats.setFont(new Font("Arial", Font.PLAIN, 14)); listaChats.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-        JScrollPane scrollLista = new JScrollPane(listaChats); scrollLista.setBorder(null); panelLista.add(scrollLista, BorderLayout.CENTER);
-        JButton btnNuevoMsg = new JButton("Nuevo Mensaje"); btnNuevoMsg.setBackground(COLOR_BOTTON); btnNuevoMsg.setForeground(Color.WHITE); btnNuevoMsg.setFont(new Font("Arial", Font.BOLD, 12)); panelLista.add(btnNuevoMsg, BorderLayout.SOUTH);
-        ArrayList<String> chats = sistema.getChatsRecientes(); for (String u : chats) modelChats.addElement(u);
+        
+        DefaultListModel<String> modelChats = new DefaultListModel<>(); 
+        JList<String> listaChats = new JList<>(modelChats); 
+        listaChats.setFont(new Font("Arial", Font.PLAIN, 14)); 
+        listaChats.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        JScrollPane scrollLista = new JScrollPane(listaChats); 
+        scrollLista.setBorder(null); 
+        panelLista.add(scrollLista, BorderLayout.CENTER);
+        
+        JButton btnNuevoMsg = new JButton("Nuevo Mensaje"); 
+        btnNuevoMsg.setBackground(COLOR_BOTTON); 
+        btnNuevoMsg.setForeground(Color.WHITE); 
+        btnNuevoMsg.setFont(new Font("Arial", Font.BOLD, 12)); 
+        panelLista.add(btnNuevoMsg, BorderLayout.SOUTH);
+        
+        ArrayList<String> chats = sistema.getChatsRecientes(); 
+        for (String u : chats) modelChats.addElement(u);
         splitPane.setLeftComponent(panelLista);
 
-        JPanel panelChat = new JPanel(new BorderLayout()); panelChat.setBackground(COLOR_FONDO);
-        JLabel lblSelecciona = new JLabel("Selecciona un chat", SwingConstants.CENTER); lblSelecciona.setFont(new Font("Arial", Font.ITALIC, 16)); lblSelecciona.setForeground(COLOR_FONT);
+        // --- Panel Derecho: Área de Chat ---
+        JPanel panelChat = new JPanel(new BorderLayout()); 
+        panelChat.setBackground(COLOR_FONDO);
+        JLabel lblSelecciona = new JLabel("Selecciona un chat", SwingConstants.CENTER); 
+        lblSelecciona.setFont(new Font("Arial", Font.ITALIC, 16)); 
+        lblSelecciona.setForeground(COLOR_FONT);
         panelChat.add(lblSelecciona, BorderLayout.CENTER);
         splitPane.setRightComponent(panelChat);
+        
         add(splitPane, BorderLayout.CENTER);
 
+        // --- Evento al seleccionar un usuario de la lista ---
         listaChats.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 String seleccionado = listaChats.getSelectedValue();
-                if (seleccionado != null) cargarConversacionEnPanel(panelChat, seleccionado);
+                if (seleccionado != null) {
+                    mostrarChatLive(panelChat, seleccionado); // NUEVO MÉTODO
+                }
             }
         });
 
@@ -826,43 +959,126 @@ public class VentanaPrincipal extends JFrame {
             if (destino != null && !destino.isEmpty()) {
                 if (sistema.buscarUsuario(destino) == null) JOptionPane.showMessageDialog(this, "Usuario no encontrado.");
                 else if (!sistema.puedeEnviarMensaje(destino)) JOptionPane.showMessageDialog(this, "No puedes enviar mensaje a este usuario (Perfil Privado).");
-                else { if (!modelChats.contains(destino)) modelChats.addElement(destino); listaChats.setSelectedValue(destino, true); }
+                else { 
+                    if (!modelChats.contains(destino)) modelChats.addElement(destino); 
+                    listaChats.setSelectedValue(destino, true); 
+                }
             }
         });
-        revalidate(); repaint();
+        
+        revalidate(); 
+        repaint();
     }
 
-    private void cargarConversacionEnPanel(JPanel panelChat, String otroUsuario) {
-        sistema.marcarComoLeido(otroUsuario);
-        panelChat.removeAll(); panelChat.setLayout(new BorderLayout()); panelChat.setBackground(COLOR_FONDO);
-        JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT)); header.setBackground(Color.WHITE); header.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(220, 220, 220)));
-        JLabel lblNombre = new JLabel(otroUsuario); lblNombre.setFont(new Font("Arial", Font.BOLD, 16)); header.add(lblNombre);
+    // --- NUEVO MÉTODO: Configura la UI del chat e inicia el Timer ---
+    private void mostrarChatLive(JPanel panelChat, String otroUsuario) {
+        // Detenemos el timer anterior si cambiamos de conversación
+        if (chatTimer != null) chatTimer.stop();
+        
+        panelChat.removeAll();
+        panelChat.setLayout(new BorderLayout());
+        panelChat.setBackground(COLOR_FONDO);
+
+        // Header
+        JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT)); 
+        header.setBackground(Color.WHITE); 
+        header.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(220, 220, 220)));
+        JLabel lblNombre = new JLabel(otroUsuario); 
+        lblNombre.setFont(new Font("Arial", Font.BOLD, 16)); 
+        header.add(lblNombre);
         panelChat.add(header, BorderLayout.NORTH);
 
-        JPanel panelMensajes = new JPanel(); panelMensajes.setLayout(new BoxLayout(panelMensajes, BoxLayout.Y_AXIS)); panelMensajes.setBackground(COLOR_FONDO);
-        JScrollPane scrollMensajes = new JScrollPane(panelMensajes); scrollMensajes.setBorder(null);
-        ArrayList<Mensaje> historial = sistema.getConversacion(otroUsuario);
-        for (Mensaje m : historial) {
-            JPanel msgPanel = new JPanel(new BorderLayout()); msgPanel.setBackground(COLOR_FONDO); msgPanel.setMaximumSize(new Dimension(400, 50));
-            JTextArea txtMsg = new JTextArea(m.getContenido()); txtMsg.setLineWrap(true); txtMsg.setWrapStyleWord(true); txtMsg.setFont(new Font("Arial", Font.PLAIN, 12)); txtMsg.setEditable(false); txtMsg.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-            if (m.getEmisor().equals(sistema.getUsuarioActual().getUsername())) { msgPanel.add(txtMsg, BorderLayout.EAST); txtMsg.setBackground(COLOR_BOTTON); txtMsg.setForeground(Color.WHITE); }
-            else { msgPanel.add(txtMsg, BorderLayout.WEST); txtMsg.setBackground(Color.WHITE); }
-            panelMensajes.add(msgPanel); panelMensajes.add(Box.createVerticalStrut(5));
-        }
-        SwingUtilities.invokeLater(() -> scrollMensajes.getVerticalScrollBar().setValue(scrollMensajes.getVerticalScrollBar().getMaximum()));
+        // Panel central de mensajes (donde ocurrirá la magia)
+        JPanel panelMensajes = new JPanel(); 
+        panelMensajes.setLayout(new BoxLayout(panelMensajes, BoxLayout.Y_AXIS)); 
+        panelMensajes.setBackground(COLOR_FONDO);
+        JScrollPane scrollMensajes = new JScrollPane(panelMensajes); 
+        scrollMensajes.setBorder(null);
         panelChat.add(scrollMensajes, BorderLayout.CENTER);
 
-        JPanel footer = new JPanel(new BorderLayout()); footer.setBackground(Color.WHITE); footer.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-        JTextField txtInput = new JTextField(); txtInput.setFont(new Font("Arial", Font.PLAIN, 14));
-        JButton btnSend = new JButton("Enviar"); btnSend.setBackground(COLOR_BOTTON); btnSend.setForeground(Color.WHITE); btnSend.setFont(new Font("Arial", Font.BOLD, 12));
-        footer.add(txtInput, BorderLayout.CENTER); footer.add(btnSend, BorderLayout.EAST);
+        // Footer (Input)
+        JPanel footer = new JPanel(new BorderLayout()); 
+        footer.setBackground(Color.WHITE); 
+        footer.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        
+        JTextField txtInput = new JTextField(); 
+        txtInput.setFont(new Font("Arial", Font.PLAIN, 14));
+        
+        JButton btnSend = new JButton("Enviar"); 
+        btnSend.setBackground(COLOR_BOTTON); 
+        btnSend.setForeground(Color.WHITE); 
+        btnSend.setFont(new Font("Arial", Font.BOLD, 12));
+        
+        footer.add(txtInput, BorderLayout.CENTER); 
+        footer.add(btnSend, BorderLayout.EAST);
         panelChat.add(footer, BorderLayout.SOUTH);
 
+        // Acción de Enviar
         ActionListener sendAction = e -> {
             String texto = txtInput.getText();
-            if (!texto.isEmpty()) { sistema.enviarMensaje(otroUsuario, texto, "TEXTO"); txtInput.setText(""); cargarConversacionEnPanel(panelChat, otroUsuario); }
+            if (!texto.isEmpty()) { 
+                sistema.enviarMensaje(otroUsuario, texto, "TEXTO"); 
+                txtInput.setText(""); 
+                refrescarMensajes(panelMensajes, otroUsuario); // Refresco inmediato
+            }
         };
-        btnSend.addActionListener(sendAction); txtInput.addActionListener(sendAction);
-        panelChat.revalidate(); panelChat.repaint();
+        btnSend.addActionListener(sendAction); 
+        txtInput.addActionListener(sendAction);
+
+        // Carga inicial de mensajes
+        refrescarMensajes(panelMensajes, otroUsuario);
+
+        // --- INICIO DEL TIMER (CHAT LIVE) ---
+        // Cada 2000 ms (2 segundos) se actualiza el panel
+        chatTimer = new Timer(2000, ev -> refrescarMensajes(panelMensajes, otroUsuario));
+        chatTimer.start();
+
+        panelChat.revalidate(); 
+        panelChat.repaint();
+    }
+
+    // --- NUEVO MÉTODO AUXILIAR: Solo actualiza los textos ---
+    private void refrescarMensajes(JPanel panelMensajes, String otroUsuario) {
+        sistema.marcarComoLeido(otroUsuario);
+        
+        panelMensajes.removeAll();
+        ArrayList<Mensaje> historial = sistema.getConversacion(otroUsuario);
+        
+        for (Mensaje m : historial) {
+            JPanel msgPanel = new JPanel(new BorderLayout()); 
+            msgPanel.setBackground(COLOR_FONDO); 
+            // Ajuste de tamaño preferido
+            msgPanel.setMaximumSize(new Dimension(450, 50));
+            
+            JTextArea txtMsg = new JTextArea(m.getContenido()); 
+            txtMsg.setLineWrap(true); 
+            txtMsg.setWrapStyleWord(true); 
+            txtMsg.setFont(new Font("Arial", Font.PLAIN, 12)); 
+            txtMsg.setEditable(false); 
+            txtMsg.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+            
+            if (m.getEmisor().equals(sistema.getUsuarioActual().getUsername())) { 
+                msgPanel.add(txtMsg, BorderLayout.EAST); 
+                txtMsg.setBackground(COLOR_BOTTON); 
+                txtMsg.setForeground(Color.WHITE); 
+            } else { 
+                msgPanel.add(txtMsg, BorderLayout.WEST); 
+                txtMsg.setBackground(Color.WHITE); 
+            }
+            panelMensajes.add(msgPanel); 
+            panelMensajes.add(Box.createVerticalStrut(5));
+        }
+        
+        // Auto-scroll al final
+        SwingUtilities.invokeLater(() -> {
+            Container parent = panelMensajes.getParent();
+            if (parent instanceof JScrollPane) {
+                 JScrollBar bar = ((JScrollPane) parent).getVerticalScrollBar();
+                 bar.setValue(bar.getMaximum());
+            }
+        });
+        
+        panelMensajes.revalidate();
+        panelMensajes.repaint();
     }
 }

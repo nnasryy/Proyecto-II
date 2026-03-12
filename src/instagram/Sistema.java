@@ -567,4 +567,98 @@ public Usuario buscarUsuario(String username) {
             e.printStackTrace();
         }
     }
+    
+//Buscar por hashtag 
+    // Añadir en Sistema.java
+    public ArrayList<Publicacion> buscarPorHashtag(String hashtag) {
+        ArrayList<Publicacion> resultados = new ArrayList<>();
+        if (hashtag == null || hashtag.isEmpty()) return resultados;
+        
+        if (!hashtag.startsWith("#")) hashtag = "#" + hashtag;
+
+        File raiz = new File(RUTA_RAIZ);
+        String[] users = raiz.list();
+        if (users != null) {
+            for (String u : users) {
+                // Reutilizamos métodos existentes
+                ArrayList<Publicacion> posts = getPublicacionesDeUsuario(u);
+                for (Publicacion p : posts) {
+                    if (p.getContenido() != null && p.getContenido().contains(hashtag)) {
+                        resultados.add(p);
+                    }
+                }
+            }
+        }
+        return resultados;
+    }    
+        // ---------------------------------------------------------
+    // GESTIÓN DE ESTADO DE CUENTA
+    // ---------------------------------------------------------
+
+    // 1. Usado en Perfil (Usuario logueado) para Desactivar
+    public void cambiarEstadoCuenta(EstadoCuenta nuevoEstado) {
+        if (usuarioActual == null) return;
+        
+        // Actualizar en memoria
+        usuarioActual.setEstadoCuenta(nuevoEstado);
+        
+        // Actualizar en el archivo users.ins
+        File archivo = new File(RUTA_USERS);
+        ArrayList<String> lineasActualizadas = new ArrayList<>();
+        
+        try (Scanner sc = new Scanner(archivo)) {
+            while (sc.hasNextLine()) {
+                String linea = sc.nextLine();
+                String[] datos = linea.split("\\|");
+                
+                // Validar que la línea tenga el formato correcto (al menos 9 columnas)
+                if (datos.length >= 9 && datos[0].equals(usuarioActual.getUsername())) {
+                    datos[8] = nuevoEstado.name(); // ACTIVO o DESACTIVADO
+                    linea = String.join("|", datos);
+                }
+                lineasActualizadas.add(linea);
+            }
+        } catch (Exception e) { 
+            e.printStackTrace(); 
+        }
+        
+        // Reescribir el archivo
+        try (FileWriter fw = new FileWriter(RUTA_USERS)) {
+            for (String l : lineasActualizadas) {
+                fw.write(l + "\n");
+            }
+        } catch (IOException e) { 
+            e.printStackTrace(); 
+        }
+    }
+
+    // 2. Usado en Login (Usuario fuera) para Reactivar
+    public void reactivarCuenta(String username) {
+        File archivo = new File(RUTA_USERS);
+        ArrayList<String> lineas = new ArrayList<>();
+        
+        try (Scanner sc = new Scanner(archivo)) {
+            while (sc.hasNextLine()) {
+                String linea = sc.nextLine();
+                String[] datos = linea.split("\\|");
+                
+                // Validar formato y buscar usuario
+                if (datos.length >= 9 && datos[0].equals(username)) {
+                    datos[8] = EstadoCuenta.ACTIVO.name(); // Forzar ACTIVO
+                    linea = String.join("|", datos);
+                }
+                lineas.add(linea);
+            }
+        } catch (Exception e) { 
+            e.printStackTrace(); 
+        }
+        
+        try (FileWriter fw = new FileWriter(RUTA_USERS)) {
+            for (String l : lineas) {
+                fw.write(l + "\n");
+            }
+        } catch (IOException e) { 
+            e.printStackTrace(); 
+        }
+    }
 }

@@ -71,5 +71,7 @@ public class Usuario {
     public String getFotoPerfil() {
         return fotoPerfil;
     }
-
+    public void setEstadoCuenta(EstadoCuenta estadoCuenta) {
+        this.estadoCuenta = estadoCuenta;
+    }
 }
