@@ -80,6 +80,7 @@ public class VentanaPrincipal extends JFrame {
         cargarIconoSidebar("Search", "searchicon.png", "bsearchicon.png", size);
         cargarIconoSidebar("Messages", "messageicon.png", "bmessageicon.png", size);
         cargarIconoSidebar("Create", "createicon.png", "bcreateicon.png", size);
+        cargarIconoSidebar("Notifications", "hearticon.png","bhearticon.png",size);
         cargarIconoSidebar("Profile", "profileicon.png", "bprofileicon.png", size); // Ajusta nombres si son diferentes
     }
 
@@ -133,7 +134,7 @@ public class VentanaPrincipal extends JFrame {
             lblLogo.setIcon(new ImageIcon(img));
         } catch (Exception e) {
             lblLogo.setText("INSTAGRAM");
-            lblLogo.setHorizontalAlignment(SwingConstants.CENTER);
+            lblLogo.setHorizontalAlignment(SwingConstants.LEFT);
             lblLogo.setFont(new Font("Arial", Font.BOLD, 30));
         }
 
@@ -630,6 +631,7 @@ public class VentanaPrincipal extends JFrame {
         panelPass.add(btnEye, BorderLayout.EAST);
         return panelPass;
     }
+    
 
     private JPanel crearPanelConIconoDerecho(String placeholder) {
         JPanel panel = new JPanel(new BorderLayout());
@@ -823,7 +825,18 @@ public class VentanaPrincipal extends JFrame {
         lblContenido.setFont(new Font("Arial", Font.PLAIN, 13));
         JLabel lblFecha = new JLabel(p.getFecha().toString() + " " + p.getHoraFormateada());
         lblFecha.setForeground(COLOR_FONT);
+        JButton btnLike = new JButton(" Me gusta");
+        btnLike.setBorderPainted(false);
+        btnLike.setBackground(Color.WHITE);
+        btnLike.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        
+        btnLike.addActionListener(ev -> {
+            sistema.darLike(p.getAutor(), p.getFecha().toString());
+            btnLike.setEnabled(false); // Desactivar para no spamear
+            btnLike.setText("Te gusta");
+        });
         lblFecha.setFont(new Font("Arial", Font.ITALIC, 11));
+        footer.add(btnLike);
         footer.add(lblContenido);
         footer.add(lblFecha);
 
@@ -922,6 +935,7 @@ public class VentanaPrincipal extends JFrame {
         JButton btnInicio = crearBotonSidebar("Inicio", "Home");
         JButton btnBuscar = crearBotonSidebar("Buscar", "Search");
         JButton btnMensajes = crearBotonSidebar("Mensajes", "Messages");
+        JButton btnNotificaciones = crearBotonSidebar("Notificaciones", "Notifications");
         JButton btnNuevo = crearBotonSidebar("Crear", "Create");
         JButton btnPerfil = crearBotonSidebar("Mi Perfil", "Profile");
         JButton btnCerrarSesion = crearBotonSidebar("Cerrar Sesión", null); // Sin icono
@@ -931,6 +945,7 @@ public class VentanaPrincipal extends JFrame {
         panelSidebar.add(btnBuscar);
         panelSidebar.add(btnMensajes);
         panelSidebar.add(btnNuevo);
+        panelSidebar.add(btnNotificaciones);
         panelSidebar.add(btnPerfil);
         panelSidebar.add(Box.createVerticalGlue());
         panelSidebar.add(btnCerrarSesion);
@@ -940,6 +955,7 @@ public class VentanaPrincipal extends JFrame {
         btnInicio.addActionListener(e -> cargarVistaFeed());
         btnBuscar.addActionListener(e -> cargarVistaBusqueda());
         btnMensajes.addActionListener(e -> cargarVistaInbox());
+        btnNotificaciones.addActionListener(e -> cargarVistaNotificaciones());
         btnNuevo.addActionListener(e -> abrirDialogoNuevaPublicacion());
         btnPerfil.addActionListener(e -> cargarVistaPerfil(sistema.getUsuarioActual().getUsername()));
         btnCerrarSesion.addActionListener(e -> {
@@ -1472,42 +1488,57 @@ public class VentanaPrincipal extends JFrame {
         btnSticker.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
         // Acción del botón Sticker
+        // Acción del botón Sticker
         btnSticker.addActionListener(ev -> {
-            // Abrimos un diálogo simple para seleccionar
-            ArrayList<String> stickers = sistema.getStickersGlobales();
-            if (stickers.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "No hay stickers en la carpeta 'stickers_globales'.");
-                return;
+            // Obtenemos TODOS los stickers (globales + personales)
+            ArrayList<String> stickers = sistema.getTodosStickers(sistema.getUsuarioActual().getUsername());
+            
+            // Creamos un modelo para la lista visual
+            DefaultListModel<String> model = new DefaultListModel<>();
+            model.addElement("--> Importar nuevo sticker..."); // Opción especial al inicio
+            
+            for (String ruta : stickers) {
+                model.addElement(new File(ruta).getName()); // Mostramos solo el nombre
             }
-
-            // Creamos un array para mostrar solo el nombre del archivo
-            String[] nombres = new String[stickers.size()];
-            for (int i = 0; i < stickers.size(); i++) {
-                nombres[i] = new File(stickers.get(i)).getName();
-            }
-
-            String seleccion = (String) JOptionPane.showInputDialog(
-                    this,
-                    "Selecciona un Sticker:",
-                    "Stickers",
-                    JOptionPane.PLAIN_MESSAGE,
-                    null,
-                    nombres,
-                    nombres[0]);
-
-            if (seleccion != null) {
-                String rutaCompleta = null;
-                for (String ruta : stickers) {
-                    if (ruta.endsWith(seleccion)) {
-                        rutaCompleta = ruta;
-                        break;
+            
+            JList<String> listaVisual = new JList<>(model);
+            int opcion = JOptionPane.showConfirmDialog(this, 
+                    new JScrollPane(listaVisual), 
+                    "Mis Stickers", 
+                    JOptionPane.OK_CANCEL_OPTION);
+            
+            if (opcion == JOptionPane.OK_OPTION) {
+                String seleccionVisual = listaVisual.getSelectedValue();
+                
+                // CASO 1: El usuario quiere importar
+                if (seleccionVisual != null && seleccionVisual.equals("--> Importar nuevo sticker...")) {
+                    JFileChooser fc = new JFileChooser();
+                    fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Imágenes", "png", "jpg", "jpeg"));
+                    int res = fc.showOpenDialog(this);
+                    
+                    if (res == JFileChooser.APPROVE_OPTION) {
+                        File archivo = fc.getSelectedFile();
+                        boolean exito = sistema.guardarStickerPersonal(archivo, sistema.getUsuarioActual().getUsername());
+                        if (exito) {
+                            JOptionPane.showMessageDialog(this, "Sticker importado con éxito.");
+                        }
                     }
-                }
-
-                // Enviamos el mensaje con la ruta completa
-                if (rutaCompleta != null) {
-                    sistema.enviarMensaje(otroUsuario, rutaCompleta, "STICKER");
-                    refrescarMensajes(panelMensajes, otroUsuario);
+                } 
+                // CASO 2: El usuario seleccionó un sticker existente
+                else if (seleccionVisual != null) {
+                    // Buscamos la ruta completa correspondiente al nombre
+                    String rutaCompleta = null;
+                    for(String ruta : stickers) {
+                        if(ruta.endsWith(seleccionVisual)) {
+                            rutaCompleta = ruta;
+                            break;
+                        }
+                    }
+                    
+                    if (rutaCompleta != null) {
+                        sistema.enviarMensaje(otroUsuario, rutaCompleta, "STICKER");
+                        refrescarMensajes(panelMensajes, otroUsuario);
+                    }
                 }
             }
         });
@@ -1621,4 +1652,126 @@ public class VentanaPrincipal extends JFrame {
         panelMensajes.revalidate();
         panelMensajes.repaint();
     }
+    
+    //Cargar Vista Notificaciones
+        private void cargarVistaNotificaciones() {
+        vistaActual = "Notifications";
+        if(chatTimer != null) chatTimer.stop();
+        
+        getContentPane().removeAll();
+        setLayout(new BorderLayout());
+        add(crearPanelSidebar(), BorderLayout.WEST);
+        
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBackground(COLOR_FONDO);
+        mainPanel.setBorder(new EmptyBorder(40, 40, 40, 40));
+        
+        JLabel lblTitulo = new JLabel("Actividad");
+        lblTitulo.setFont(new Font("Arial", Font.BOLD, 24));
+        mainPanel.add(lblTitulo, BorderLayout.NORTH);
+        
+        // Panel central con scroll
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBackground(COLOR_FONDO);
+        JScrollPane scroll = new JScrollPane(content);
+        scroll.setBorder(null);
+        mainPanel.add(scroll, BorderLayout.CENTER);
+        
+        add(mainPanel, BorderLayout.CENTER);
+        
+        // --- 1. SECCIÓN SOLICITUDES ---
+        ArrayList<String> solicitudes = sistema.getSolicitudes();
+        if (!solicitudes.isEmpty()) {
+            content.add(crearTituloSeccion("Solicitudes de Seguimiento"));
+            for (String user : solicitudes) {
+                content.add(crearPanelSolicitud(user));
+                content.add(Box.createVerticalStrut(5));
+            }
+            content.add(Box.createVerticalStrut(20));
+        }
+        
+        // --- 2. SECCIÓN LIKES ---
+        ArrayList<String> likes = sistema.getNotificacionesLikes();
+        if (!likes.isEmpty()) {
+            content.add(crearTituloSeccion("Likes en tus publicaciones"));
+            
+            // Recorremos al revés para ver los más recientes primero
+            for (int i = likes.size() - 1; i >= 0; i--) {
+                String[] datos = likes.get(i).split("\\|");
+                // datos[0]=autor (yo), datos[1]=fecha, datos[2]=quien dio like
+                if (datos.length >= 3) {
+                    String fecha = datos[1];
+                    String quien = datos[2];
+                    content.add(crearPanelNotificacionLike(quien, fecha));
+                    content.add(Box.createVerticalStrut(5));
+                }
+            }
+        }
+        
+        if (solicitudes.isEmpty() && likes.isEmpty()) {
+            content.add(new JLabel("No tienes notificaciones nuevas."));
+        }
+        
+        revalidate();
+        repaint();
+    }
+    
+    // Métodos auxiliares visuales para esta vista
+    private JPanel crearTituloSeccion(String texto) {
+        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        p.setBackground(COLOR_FONDO);
+        JLabel l = new JLabel(texto);
+        l.setFont(new Font("Arial", Font.BOLD, 16));
+        l.setForeground(COLOR_BOTTON);
+        p.add(l);
+        return p;
+    }
+    
+    private JPanel crearPanelSolicitud(String username) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(Color.WHITE);
+        panel.setMaximumSize(new Dimension(500, 50));
+        panel.setBorder(BorderFactory.createLineBorder(new Color(230, 230, 230)));
+        
+        JLabel lblUser = new JLabel("  " + username + " quiere seguirte.");
+        lblUser.setFont(new Font("Arial", Font.PLAIN, 13));
+        
+        JPanel botones = new JPanel();
+        JButton btnAceptar = new JButton("Aceptar");
+        btnAceptar.setBackground(new Color(0, 150, 0));
+        btnAceptar.setForeground(Color.WHITE);
+        JButton btnRechazar = new JButton("Rechazar");
+        btnRechazar.setBackground(COLOR_ERROR);
+        btnRechazar.setForeground(Color.WHITE);
+        
+        btnAceptar.addActionListener(e -> {
+            sistema.aceptarSolicitud(username);
+            cargarVistaNotificaciones(); // Refrescar
+        });
+        btnRechazar.addActionListener(e -> {
+            sistema.rechazarSolicitud(username);
+            cargarVistaNotificaciones(); // Refrescar
+        });
+        
+        botones.add(btnAceptar);
+        botones.add(btnRechazar);
+        
+        panel.add(lblUser, BorderLayout.CENTER);
+        panel.add(botones, BorderLayout.EAST);
+        return panel;
+    }
+    
+    private JPanel crearPanelNotificacionLike(String username, String fecha) {
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        panel.setBackground(Color.WHITE);
+        panel.setMaximumSize(new Dimension(500, 40));
+        panel.setBorder(BorderFactory.createLineBorder(new Color(230, 230, 230)));
+        
+        JLabel lbl = new JLabel("  A " + username + " le gustó tu publicación del " + fecha);
+        lbl.setFont(new Font("Arial", Font.PLAIN, 13));
+        panel.add(lbl);
+        return panel;
+    }
+    
 }

@@ -110,11 +110,9 @@ public class Sistema {
                     TipoCuenta tipo = TipoCuenta.valueOf(datos[7]);
 
                     usuarioActual = new Usuario(username, password, nombre, genero, edad, foto, fecha, tipo, estado);
-                    System.out.println("Bienvenido, " + nombre);
                     return true;
                 }
             }
-            System.out.println("Credenciales incorrectas.");
             return false;
 
         } catch (FileNotFoundException e) {
@@ -196,40 +194,6 @@ public class Sistema {
         new File(rutaUser + "/folders_personales").mkdir();
     }
 
-    // ---------------------------
-    // SEGUIR USUARIO 
-    // ---------------------------
-    public boolean seguirUsuario(String usernameObjetivo) {
-        if (usuarioActual == null) {
-            return false;
-        }
-        if (usernameObjetivo.equals(usuarioActual.getUsername())) {
-            return false;
-        }
-
-        String miFollowingPath = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins";
-        String suFollowersPath = RUTA_RAIZ + "/" + usernameObjetivo + "/followers.ins";
-
-        if (verificarEnArchivo(miFollowingPath, usernameObjetivo)) {
-            System.out.println("Ya sigues a este usuario.");
-            return false;
-        }
-
-        try (FileWriter fw = new FileWriter(miFollowingPath, true)) {
-            fw.write(usernameObjetivo + "\n");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        try (FileWriter fw = new FileWriter(suFollowersPath, true)) {
-            fw.write(usuarioActual.getUsername() + "\n");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        System.out.println("Ahora sigues a " + usernameObjetivo);
-        return true;
-    }
 
     // ---------------------------
     // CREAR PUBLICACIÓN 
@@ -351,7 +315,7 @@ public class Sistema {
         }
     }
     // ---------------------------
-    // NUEVO: OBTENER PUBLICACIONES DE UN USUARIO ESPECÍFICO
+    // OBTENER PUBLICACIONES DE UN USUARIO ESPECÍFICO
     // ---------------------------
 
     public ArrayList<Publicacion> getPublicacionesDeUsuario(String username) {
@@ -730,5 +694,178 @@ public class Sistema {
         }
         return lista;
     }
+    // GUARDAR STICKER PERSONAL (Copiar archivo a carpeta del usuario)
+    public boolean guardarStickerPersonal(File origen, String username) {
+        try {
+            String rutaCarpeta = RUTA_RAIZ + "/" + username + "/stickers_personales";
+            File carpeta = new File(rutaCarpeta);
+            if (!carpeta.exists()) carpeta.mkdirs();
+            
+            // Nombre único para no sobrescribir
+            String nombre = "sticker_" + System.currentTimeMillis() + ".png";
+            File destino = new File(rutaCarpeta + "/" + nombre);
+            
+            // Copiar archivo
+            java.nio.file.Files.copy(origen.toPath(), destino.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            
+            return true;
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
 
+    // OBTENER TODOS LOS STICKERS (Globales + Personales)
+    public ArrayList<String> getTodosStickers(String username) {
+        ArrayList<String> lista = new ArrayList<>();
+        
+        // 1. Globales
+        lista.addAll(getStickersGlobales());
+        
+        // 2. Personales
+        String rutaCarpeta = RUTA_RAIZ + "/" + username + "/stickers_personales";
+        File carpeta = new File(rutaCarpeta);
+        if (carpeta.exists()) {
+            String[] archivos = carpeta.list((dir, name) -> 
+                name.toLowerCase().endsWith(".png") || name.toLowerCase().endsWith(".jpg"));
+            if (archivos != null) {
+                for (String f : archivos) lista.add(rutaCarpeta + "/" + f);
+            }
+        }
+        
+        return lista;
+    }
+        // ---------------------------------------------------------
+    // GESTIÓN DE SOLICITUDES (CUENTAS PRIVADAS)
+    // ---------------------------------------------------------
+    
+    // Método modificar "seguirUsuario" para que distinga entre público y privado
+    // NOTA: Debes reemplazar tu método seguirUsuario actual con este.
+    public boolean seguirUsuario(String usernameObjetivo) {
+        if (usuarioActual == null) return false; 
+        if (usernameObjetivo.equals(usuarioActual.getUsername())) return false; 
+
+        Usuario objetivo = buscarUsuario(usernameObjetivo);
+        
+        // Si el perfil es PÚBLICO -> Sigue directo (tu lógica anterior)
+        if (objetivo.getTipoCuenta() == TipoCuenta.PUBLICA) {
+            String miFollowingPath = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins";
+            String suFollowersPath = RUTA_RAIZ + "/" + usernameObjetivo + "/followers.ins";
+
+            if (verificarEnArchivo(miFollowingPath, usernameObjetivo)) return false; // Ya lo sigo
+
+            try (FileWriter fw = new FileWriter(miFollowingPath, true)) { fw.write(usernameObjetivo + "\n"); } catch (IOException e) {}
+            try (FileWriter fw = new FileWriter(suFollowersPath, true)) { fw.write(usuarioActual.getUsername() + "\n"); } catch (IOException e) {}
+            
+            return true;
+        } 
+        // Si el perfil es PRIVADO -> Envía solicitud
+        else {
+            return enviarSolicitud(usernameObjetivo);
+        }
+    }
+
+    private boolean enviarSolicitud(String usernameObjetivo) {
+        String rutaSolicitudes = RUTA_RAIZ + "/" + usernameObjetivo + "/solicitudes.ins";
+        
+        // Verificar si ya envié solicitud
+        if (verificarEnArchivo(rutaSolicitudes, usuarioActual.getUsername())) return false;
+        
+        try (FileWriter fw = new FileWriter(rutaSolicitudes, true)) {
+            fw.write(usuarioActual.getUsername() + "\n");
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    // Aceptar solicitud (mueve de solicitudes.ins a followers.ins)
+    public void aceptarSolicitud(String usernameSolicitante) {
+        String rutaSolicitudes = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/solicitudes.ins";
+        String rutaFollowers = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/followers.ins";
+        String rutaFollowingSolicitante = RUTA_RAIZ + "/" + usernameSolicitante + "/following.ins";
+
+        // 1. Agregar a mis followers
+        try (FileWriter fw = new FileWriter(rutaFollowers, true)) { fw.write(usernameSolicitante + "\n"); } catch (IOException e) {}
+
+        // 2. Agregarme a su following
+        try (FileWriter fw = new FileWriter(rutaFollowingSolicitante, true)) { fw.write(usuarioActual.getUsername() + "\n"); } catch (IOException e) {}
+
+        // 3. Eliminar solicitud
+        eliminarLineaDeArchivo(rutaSolicitudes, usernameSolicitante);
+    }
+
+    // Rechazar solicitud
+    public void rechazarSolicitud(String usernameSolicitante) {
+        String rutaSolicitudes = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/solicitudes.ins";
+        eliminarLineaDeArchivo(rutaSolicitudes, usernameSolicitante);
+    }
+
+    // Obtener lista de solicitudes pendientes
+    public ArrayList<String> getSolicitudes() {
+        ArrayList<String> lista = new ArrayList<>();
+        String ruta = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/solicitudes.ins";
+        File f = new File(ruta);
+        if(f.exists()){
+            try (Scanner sc = new Scanner(f)) {
+                while(sc.hasNextLine()) lista.add(sc.nextLine());
+            } catch (Exception e) {}
+        }
+        return lista;
+    }
+
+    // ---------------------------------------------------------
+    // GESTIÓN DE LIKES (PARA NOTIFICACIONES)
+    // ---------------------------------------------------------
+    
+    // Dar like a una publicación (autorPost + fechaPost identifican el post)
+    public boolean darLike(String autorPost, String fechaPost) {
+        if (usuarioActual == null) return false;
+        
+        String rutaLikes = RUTA_RAIZ + "/" + autorPost + "/likes.ins";
+        String idPost = autorPost + "|" + fechaPost; // ID único del post
+        String lineaLike = idPost + "|" + usuarioActual.getUsername();
+
+        // Evitar likes duplicados
+        if (verificarEnArchivo(rutaLikes, lineaLike)) return false;
+
+        try (FileWriter fw = new FileWriter(rutaLikes, true)) {
+            fw.write(lineaLike + "\n");
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    // Obtener notificaciones de likes
+    public ArrayList<String> getNotificacionesLikes() {
+        ArrayList<String> notifs = new ArrayList<>();
+        String ruta = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/likes.ins";
+        File f = new File(ruta);
+        if(f.exists()){
+            try (Scanner sc = new Scanner(f)) {
+                while(sc.hasNextLine()) {
+                    // Formato: autorPost|fechaPost|usernameQueDioLike
+                    // Como soy el autor, el archivo tiene: miUsername|fechaPost|otroUsername
+                    notifs.add(sc.nextLine()); 
+                }
+            } catch (Exception e) {}
+        }
+        return notifs;
+    }
+
+    // Método auxiliar para eliminar líneas
+    private void eliminarLineaDeArchivo(String ruta, String texto) {
+        File archivo = new File(ruta);
+        ArrayList<String> lineas = new ArrayList<>();
+        try (Scanner sc = new Scanner(archivo)) {
+            while (sc.hasNextLine()) {
+                String l = sc.nextLine();
+                if (!l.trim().equals(texto)) lineas.add(l);
+            }
+        } catch (Exception e) {}
+        try (FileWriter fw = new FileWriter(ruta)) {
+            for (String l : lineas) fw.write(l + "\n");
+        } catch (IOException e) {}
+    }
 }
