@@ -2,6 +2,8 @@ package instagram;
 
 import enums.EstadoCuenta;
 import enums.TipoCuenta;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileWriter;
@@ -868,4 +870,172 @@ public class Sistema {
             for (String l : lineas) fw.write(l + "\n");
         } catch (IOException e) {}
     }
+    
+        // --- MÉTODOS PARA INTERACCIONES EN PUBLICACIONES ---
+
+    // Verificar si ya di like (para pintar el botón al cargar)
+    public boolean yaDioLike(String autorPost, String fechaPost) {
+        if (usuarioActual == null) return false;
+        String rutaLikes = RUTA_RAIZ + "/" + autorPost + "/likes.ins";
+        String idBusqueda = autorPost + "|" + fechaPost + "|" + usuarioActual.getUsername();
+        return verificarEnArchivo(rutaLikes, idBusqueda);
+    }
+
+    // Toggle Like (Dar o Quitar)
+    // Retorna true si finalmente tiene like, false si no
+    public boolean toggleLike(String autorPost, String fechaPost) {
+        if (usuarioActual == null) return false;
+        
+        String rutaLikes = RUTA_RAIZ + "/" + autorPost + "/likes.ins";
+        String idLike = autorPost + "|" + fechaPost + "|" + usuarioActual.getUsername();
+
+        // Si ya existe, lo quitamos
+        if (verificarEnArchivo(rutaLikes, idLike)) {
+            eliminarLineaDeArchivo(rutaLikes, idLike);
+            return false; // Indica que ahora NO tiene like
+        } else {
+            // Si no existe, lo damos
+            try (FileWriter fw = new FileWriter(rutaLikes, true)) {
+                fw.write(idLike + "\n");
+                return true; // Indica que ahora SÍ tiene like
+            } catch (IOException e) { return true; }
+        }
+    }
+
+    // Agregar Comentario
+    public void agregarComentario(String autorPost, String fechaPost, String comentario) {
+        if (usuarioActual == null) return;
+        String rutaComments = RUTA_RAIZ + "/" + autorPost + "/comments.ins";
+        String linea = fechaPost + "|" + usuarioActual.getUsername() + "|" + comentario;
+        
+        try (FileWriter fw = new FileWriter(rutaComments, true)) {
+            fw.write(linea + "\n");
+        } catch (IOException e) { e.printStackTrace(); }
+    }
+
+    // Obtener Comentarios de un post específico
+    public ArrayList<String> getComentarios(String autorPost, String fechaPost) {
+        ArrayList<String> lista = new ArrayList<>();
+        String rutaComments = RUTA_RAIZ + "/" + autorPost + "/comments.ins";
+        File f = new File(rutaComments);
+        if (!f.exists()) return lista;
+
+        try (Scanner sc = new Scanner(f)) {
+            while (sc.hasNextLine()) {
+                String[] datos = sc.nextLine().split("\\|");
+                // Formato: fecha|usuario|comentario
+                if (datos.length >= 3 && datos[0].equals(fechaPost)) {
+                    lista.add(datos[1] + ": " + datos[2]);
+                }
+            }
+        } catch (Exception e) {}
+        return lista;
+    }
+    
+    // Compartir post (Envía mensaje con los datos)
+    public void compartirPost(String usernameDestino, String autorPost, String rutaImagen, String contenido) {
+        String msg = "POST COMPARTIDO DE " + autorPost + ":\n" + contenido + "\n[Ver imagen: " + rutaImagen + "]";
+        enviarMensaje(usernameDestino, msg, "TEXTO");
+    }
+    
+        // Método para recortar y guardar imagen en 600x600 (Desktop)
+    public String procesarYGuardarImagen(File original, String username, String nombreArchivo) {
+        try {
+            BufferedImage imgOriginal = javax.imageio.ImageIO.read(original);
+            int width = 600; // Resolución Desktop obligatoria
+            int height = 600; 
+            
+            BufferedImage imgFinal = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g2d = imgFinal.createGraphics();
+            
+            // Calcular recorte central (Center Crop)
+            double ratioOriginal = (double) imgOriginal.getWidth() / imgOriginal.getHeight();
+            int srcX, srcY, srcW, srcH;
+            
+            if (ratioOriginal > 1) { 
+                // Horizontal: recortamos lados
+                srcH = imgOriginal.getHeight();
+                srcW = (int) (srcH * 1.0);
+                srcX = (imgOriginal.getWidth() - srcW) / 2;
+                srcY = 0;
+            } else { 
+                // Vertical: recortamos arriba/abajo
+                srcW = imgOriginal.getWidth();
+                srcH = (int) (srcW / 1.0);
+                srcX = 0;
+                srcY = (imgOriginal.getHeight() - srcH) / 2;
+            }
+            
+            g2d.drawImage(imgOriginal, 0, 0, width, height, srcX, srcY, srcX + srcW, srcY + srcH, null);
+            g2d.dispose();
+            
+            // Guardar
+            String rutaCarpeta = RUTA_RAIZ + "/" + username + "/imagenes";
+            new File(rutaCarpeta).mkdirs();
+            String rutaFinal = rutaCarpeta + "/" + nombreArchivo + ".jpg";
+            javax.imageio.ImageIO.write(imgFinal, "jpg", new File(rutaFinal));
+            
+            return rutaFinal;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+    
+        public void eliminarConversacion(String otroUsuario) {
+        String rutaInbox = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins";
+        File archivo = new File(rutaInbox);
+        if (!archivo.exists()) return;
+
+        ArrayList<String> lineas = new ArrayList<>();
+        
+        try (Scanner sc = new Scanner(archivo)) {
+            while (sc.hasNextLine()) {
+                String linea = sc.nextLine();
+                Mensaje m = Mensaje.fromFileString(linea);
+                // Si no pertenece a esta conversación, la guardamos
+                if (m != null && 
+                   !( (m.getEmisor().equals(otroUsuario) && m.getReceptor().equals(usuarioActual.getUsername())) ||
+                      (m.getEmisor().equals(usuarioActual.getUsername()) && m.getReceptor().equals(otroUsuario)) )) {
+                    lineas.add(linea);
+                }
+            }
+        } catch (Exception e) {} 
+        
+        // Reescribir
+        try (FileWriter fw = new FileWriter(rutaInbox)) {
+            for(String l : lineas) fw.write(l + "\n");
+        } catch (IOException e) {}
+    }
+    
+        // MÉTODO PARA OBTENER MENCIONES (Punto 10)
+    public ArrayList<Publicacion> getMenciones() {
+        if (usuarioActual == null) return new ArrayList<>();
+        ArrayList<Publicacion> menciones = new ArrayList<>();
+        
+        String miUsername = usuarioActual.getUsername();
+        File raiz = new File(RUTA_RAIZ);
+        String[] carpetas = raiz.list();
+        
+        if (carpetas != null) {
+            for (String userFolder : carpetas) {
+                File f = new File(RUTA_RAIZ + "/" + userFolder);
+                if (f.isDirectory()) {
+                    // Reutilizamos el método existente que lee el archivo insta.ins
+                    ArrayList<Publicacion> postsUsuario = getPublicacionesDeUsuario(userFolder);
+                    for (Publicacion p : postsUsuario) {
+                        // Verificamos si el contenido contiene @miUsername
+                        if (p.getContenido() != null && p.getContenido().contains("@" + miUsername)) {
+                            menciones.add(p);
+                        }
+                    }
+                }
+            }
+        }
+        return menciones;
+    }
+    
+    
+    
+    
 }
