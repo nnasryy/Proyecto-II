@@ -242,7 +242,7 @@ public class Sistema {
         String[] archivos = {
             "followers.ins", "following.ins", "insta.ins",
             "inbox.ins", "stickers.ins", "solicitudes.ins",
-            "likes.ins", "comments.ins"
+            "likes.ins", "comments.ins, notifications.in"
         };
 
         for (String archivo : archivos) {
@@ -286,7 +286,18 @@ public class Sistema {
 
         try (FileWriter fw = new FileWriter(rutaInsta, true)) {
             fw.write(nueva.toFileString() + "\n");
-            System.out.println("Publicación creada exitosamente.");
+       if (menciones != null && !menciones.isEmpty()) {
+        String[] listaMenciones = menciones.split(" ");
+        for (String m : listaMenciones) {
+            if (m.startsWith("@")) {
+                String userMencionado = m.replace("@", "");
+                if (existeUsername(userMencionado)) {
+                    String msgNotif = "MENCION|" + usuarioActual.getUsername() + "|" + contenido + "|" + LocalDate.now();
+                    guardarNotificacion(userMencionado, msgNotif);
+                }
+            }
+        }
+    }
             return true;
         } catch (IOException e) {
             e.printStackTrace();
@@ -428,46 +439,51 @@ public class Sistema {
     }
     // Método específico para fotos de perfil: RECORTA al centro (Square Crop)
 
-  public String procesarImagenPerfil(File original, String username, String nombreArchivo) {
-    try {
-        BufferedImage imgOriginal = javax.imageio.ImageIO.read(original);
-        if (imgOriginal == null) {
-            System.out.println("Error: El archivo seleccionado no es una imagen válida.");
+    public String procesarImagenPerfil(File original, String username, String nombreArchivo) {
+        try {
+            BufferedImage imgOriginal = javax.imageio.ImageIO.read(original);
+            if (imgOriginal == null) {
+                System.out.println("Error: El archivo seleccionado no es una imagen válida.");
+                return null;
+            }
+
+            int ancho = imgOriginal.getWidth();
+            int alto = imgOriginal.getHeight();
+            int size = 300;
+
+            int x = 0, y = 0;
+            int ladoCuadrado = Math.min(ancho, alto);
+            if (ancho > alto) {
+                x = (ancho - alto) / 2;
+            } else {
+                y = (alto - ancho) / 2;
+            }
+
+            BufferedImage imgRecortada = imgOriginal.getSubimage(x, y, ladoCuadrado, ladoCuadrado);
+            BufferedImage imgFinal = new BufferedImage(size, size, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g2d = imgFinal.createGraphics();
+            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g2d.drawImage(imgRecortada, 0, 0, size, size, null);
+            g2d.dispose();
+
+            // Asegurar que la carpeta exista
+            File carpeta = new File(RUTA_RAIZ + "/" + username + "/imagenes");
+            if (!carpeta.exists()) {
+                carpeta.mkdirs();
+            }
+
+            // IMPORTANTE: Usar getAbsolutePath() para guardar la ruta completa
+            File archivoDestino = new File(carpeta, nombreArchivo + ".jpg");
+            javax.imageio.ImageIO.write(imgFinal, "jpg", archivoDestino);
+
+            System.out.println("Foto guardada en: " + archivoDestino.getAbsolutePath());
+            return archivoDestino.getAbsolutePath(); // <--- CLAVE: Devolver ruta absoluta
+
+        } catch (Exception e) {
+            e.printStackTrace();
             return null;
         }
-
-        int ancho = imgOriginal.getWidth();
-        int alto = imgOriginal.getHeight();
-        int size = 300;
-
-        int x = 0, y = 0;
-        int ladoCuadrado = Math.min(ancho, alto);
-        if (ancho > alto) x = (ancho - alto) / 2;
-        else y = (alto - ancho) / 2;
-
-        BufferedImage imgRecortada = imgOriginal.getSubimage(x, y, ladoCuadrado, ladoCuadrado);
-        BufferedImage imgFinal = new BufferedImage(size, size, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g2d = imgFinal.createGraphics();
-        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g2d.drawImage(imgRecortada, 0, 0, size, size, null);
-        g2d.dispose();
-
-        // Asegurar que la carpeta exista
-        File carpeta = new File(RUTA_RAIZ + "/" + username + "/imagenes");
-        if (!carpeta.exists()) carpeta.mkdirs();
-
-        // IMPORTANTE: Usar getAbsolutePath() para guardar la ruta completa
-        File archivoDestino = new File(carpeta, nombreArchivo + ".jpg");
-        javax.imageio.ImageIO.write(imgFinal, "jpg", archivoDestino);
-        
-        System.out.println("Foto guardada en: " + archivoDestino.getAbsolutePath());
-        return archivoDestino.getAbsolutePath(); // <--- CLAVE: Devolver ruta absoluta
-
-    } catch (Exception e) {
-        e.printStackTrace();
-        return null;
     }
-}
 
     // ---------------------------
     // CONTAR LÍNEAS EN UN ARCHIVO
@@ -625,51 +641,55 @@ public class Sistema {
         return true;
     }
 // Método auxiliar para actualizar el archivo del OTRO (el que envió el mensaje)
-private void actualizarEstadoEnArchivoAjeno(String otroUsuario, String miUsername, LocalDate fecha, LocalTime hora) {
-    String rutaOtro = RUTA_RAIZ + "/" + otroUsuario + "/inbox.ins";
-    File archivoOtro = new File(rutaOtro);
-    if (!archivoOtro.exists()) return;
 
-    ArrayList<String> lineasOtro = new ArrayList<>();
-    boolean cambio = false;
-
-    try (Scanner sc = new Scanner(archivoOtro)) {
-        while (sc.hasNextLine()) {
-            String linea = sc.nextLine();
-            Mensaje m = Mensaje.fromFileString(linea);
-            
-            // LÓGICA CORREGIDA:
-            // Estamos en el archivo del EMISOR (otroUsuario).
-            // Buscamos el mensaje que ÉL envió (Emisor == otroUsuario) 
-            // y que YO recibí (Receptor == miUsername).
-            if (m != null 
-                && m.getEmisor().equals(otroUsuario) 
-                && m.getReceptor().equals(miUsername) 
-                && m.getFecha().equals(fecha) 
-                && m.getHora().equals(hora)) {
-                
-                m.setEstado("LEIDO");
-                lineasOtro.add(m.toFileString());
-                cambio = true;
-            } else {
-                lineasOtro.add(linea);
-            }
+    private void actualizarEstadoEnArchivoAjeno(String otroUsuario, String miUsername, LocalDate fecha, LocalTime hora) {
+        String rutaOtro = RUTA_RAIZ + "/" + otroUsuario + "/inbox.ins";
+        File archivoOtro = new File(rutaOtro);
+        if (!archivoOtro.exists()) {
+            return;
         }
-    } catch (Exception e) {
-        e.printStackTrace();
-    }
 
-    // Solo reescribir si hubo cambios
-    if (cambio) {
-        try (FileWriter fw = new FileWriter(rutaOtro)) {
-            for (String l : lineasOtro) {
-                fw.write(l + "\n");
+        ArrayList<String> lineasOtro = new ArrayList<>();
+        boolean cambio = false;
+
+        try (Scanner sc = new Scanner(archivoOtro)) {
+            while (sc.hasNextLine()) {
+                String linea = sc.nextLine();
+                Mensaje m = Mensaje.fromFileString(linea);
+
+                // LÓGICA CORREGIDA:
+                // Estamos en el archivo del EMISOR (otroUsuario).
+                // Buscamos el mensaje que ÉL envió (Emisor == otroUsuario) 
+                // y que YO recibí (Receptor == miUsername).
+                if (m != null
+                        && m.getEmisor().equals(otroUsuario)
+                        && m.getReceptor().equals(miUsername)
+                        && m.getFecha().equals(fecha)
+                        && m.getHora().equals(hora)) {
+
+                    m.setEstado("LEIDO");
+                    lineasOtro.add(m.toFileString());
+                    cambio = true;
+                } else {
+                    lineasOtro.add(linea);
+                }
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
+
+        // Solo reescribir si hubo cambios
+        if (cambio) {
+            try (FileWriter fw = new FileWriter(rutaOtro)) {
+                for (String l : lineasOtro) {
+                    fw.write(l + "\n");
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
-}
+
     public ArrayList<Mensaje> getConversacion(String otroUsuario) {
         ArrayList<Mensaje> conversacion = new ArrayList<>();
         if (usuarioActual == null) {
@@ -980,7 +1000,8 @@ private void actualizarEstadoEnArchivoAjeno(String otroUsuario, String miUsernam
                 fw.write(usuarioActual.getUsername() + "\n");
             } catch (IOException e) {
             }
-
+            String msgNotif = "SEGUIDOR|" + usuarioActual.getUsername() + "|" + LocalDate.now();
+            guardarNotificacion(usernameObjetivo, msgNotif);
             return true;
         } else {
             return enviarSolicitud(usernameObjetivo);
@@ -1384,5 +1405,136 @@ private void actualizarEstadoEnArchivoAjeno(String otroUsuario, String miUsernam
             lock.delete();
         }
     }
+// ---------------------------------------------------------
+// ELIMINAR PUBLICACIÓN
+// ---------------------------------------------------------
 
+    public boolean eliminarPublicacion(Publicacion p) {
+        // 1. Validación de seguridad: Solo el autor puede borrar
+        if (usuarioActual == null || !p.getAutor().equals(usuarioActual.getUsername())) {
+            return false;
+        }
+
+        String rutaInsta = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/insta.ins";
+        File archivo = new File(rutaInsta);
+        ArrayList<String> lineasRestantes = new ArrayList<>();
+        boolean encontrado = false;
+
+        // 2. Leer el archivo y filtrar la línea a eliminar
+        try (Scanner sc = new Scanner(archivo)) {
+            while (sc.hasNextLine()) {
+                String linea = sc.nextLine();
+                Publicacion temp = Publicacion.fromFileString(linea);
+
+                // Comparación estricta: Autor + Fecha + Hora (para identificar el post único)
+                if (temp != null
+                        && temp.getAutor().equals(p.getAutor())
+                        && temp.getFecha().equals(p.getFecha())
+                        && temp.getHora().equals(p.getHora())) {
+                    encontrado = true;
+                    // NO agregamos esta línea al nuevo listado (se borra)
+                } else {
+                    lineasRestantes.add(linea);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+
+        // 3. Reescribir el archivo sin la línea borrada
+        if (encontrado) {
+            try (FileWriter fw = new FileWriter(rutaInsta)) {
+                for (String l : lineasRestantes) {
+                    fw.write(l + "\n");
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+                return false;
+            }
+
+            // 4. Borrar la imagen física del disco
+            if (p.getRutaImagen() != null && !p.getRutaImagen().isEmpty()) {
+                File img = new File(p.getRutaImagen());
+                if (img.exists()) {
+                    img.delete();
+                }
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    private void guardarNotificacion(String usernameDestino, String mensaje) {
+        String ruta = RUTA_RAIZ + "/" + usernameDestino + "/notifications.ins";
+        try (FileWriter fw = new FileWriter(ruta, true)) {
+            fw.write(mensaje + "\n");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    public ArrayList<String> getNotificacionesGenerales() {
+    ArrayList<String> lista = new ArrayList<>();
+    if (usuarioActual == null) return lista;
+    
+    String ruta = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/notifications.ins";
+    File f = new File(ruta);
+    if (f.exists()) {
+        try (Scanner sc = new Scanner(f)) {
+            while (sc.hasNextLine()) {
+                lista.add(sc.nextLine());
+            }
+        } catch (Exception e) { }
+    }
+    // Invertir para ver las más recientes primero
+    Collections.reverse(lista);
+    return lista;
+}
+    public boolean actualizarDatosUsuario(String nuevoNombre, String nuevaPassword) {
+    if (usuarioActual == null) return false;
+    
+    File archivo = new File(RUTA_USERS);
+    ArrayList<String> lineas = new ArrayList<>();
+
+    try (Scanner sc = new Scanner(archivo)) {
+        while (sc.hasNextLine()) {
+            String linea = sc.nextLine();
+            String[] datos = linea.split("\\|");
+
+            if (datos[0].equals(usuarioActual.getUsername())) {
+                // Actualizar datos en el array
+                datos[2] = nuevoNombre; // Nombre Completo
+                
+                // Si la nueva contraseña no está vacía, actualizar. Si no, mantener la actual.
+                if (nuevaPassword != null && !nuevaPassword.isEmpty()) {
+                    datos[1] = nuevaPassword;
+                }
+                
+                // Reconstruir la línea
+                linea = String.join("|", datos);
+                
+                // Actualizar el objeto en memoria
+                usuarioActual.setNombreCompleto(nuevoNombre);
+                // Nota: Sería ideal agregar un setPassword en Usuario.java si no existe,
+                // pero como es solo para login, actualizar el archivo es suficiente.
+            }
+            lineas.add(linea);
+        }
+    } catch (Exception e) {
+        e.printStackTrace();
+        return false;
+    }
+
+    // Reescribir el archivo completo
+    try (FileWriter fw = new FileWriter(RUTA_USERS)) {
+        for (String l : lineas) {
+            fw.write(l + "\n");
+        }
+    } catch (IOException e) {
+        e.printStackTrace();
+        return false;
+    }
+    return true;
+}
 }
