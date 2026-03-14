@@ -24,6 +24,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 public class VentanaPrincipal extends JFrame {
 
@@ -31,6 +32,7 @@ public class VentanaPrincipal extends JFrame {
     private Socket socket;
     private ObjectOutputStream salida;
     private Timer chatTimer;
+    private int lastMessageCount = 0;
 
     // --- COLORES ---
     private final Color COLOR_FONDO = Color.WHITE;
@@ -57,6 +59,14 @@ public class VentanaPrincipal extends JFrame {
     public VentanaPrincipal(Sistema sistema) {
         this.sistema = sistema;
         cargarIconos();
+        this.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                if (sistema.getUsuarioActual() != null) {
+                    sistema.logout();
+                }
+            }
+        });
         configurarVentana();
         inicializarComponentesLogin();
     }
@@ -248,26 +258,36 @@ public class VentanaPrincipal extends JFrame {
             String user = txtUser.getText();
             String pass = String.valueOf(txtPass.getPassword());
 
-            // 1. Validación visual local (rapida)
+            // ESCENARIO 1: Verificar sesión duplicada
+            if (sistema.sesionActiva(user)) {
+                JOptionPane.showMessageDialog(this,
+                        "Este usuario ya tiene una sesión activa.\nPor favor, cierre la otra ventana primero.",
+                        "Sesión Duplicada", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            // Validación normal de usuario
             Usuario u = sistema.buscarUsuario(user);
             if (u == null) {
                 lblErrorUser.setText("El usuario no existe.");
                 ponerBordeRojo(txtUser);
                 return;
             }
+
+            // Validación de cuenta desactivada
             if (u.getEstadoCuenta() == EstadoCuenta.DESACTIVADO) {
                 int opcion = JOptionPane.showConfirmDialog(this,
                         "Esta cuenta está desactivada. ¿Desea reactivarla?",
                         "Cuenta Inactiva", JOptionPane.YES_NO_OPTION);
 
                 if (opcion == JOptionPane.YES_OPTION) {
-                    sistema.reactivarCuenta(user); // Actualiza el archivo
+                    sistema.reactivarCuenta(user);
                 } else {
-                    return; // Detiene el proceso si no quiere reactivar
+                    return;
                 }
             }
 
-            // 2. Intento de Login Local (Para que funcione tu lógica actual)
+            // Intento de Login
             boolean passCorrecta = sistema.login(user, pass);
             if (!passCorrecta) {
                 lblErrorPass.setText("La contraseña es incorrecta.");
@@ -275,28 +295,7 @@ public class VentanaPrincipal extends JFrame {
                 return;
             }
 
-            // 3. Intento de conexión Socket (Añadido para el requisito del profesor)
-            // Esto se ejecuta solo si el login local fue exitoso
-            try {
-                socket = new Socket("localhost", 5000);
-                salida = new ObjectOutputStream(socket.getOutputStream());
-
-                salida.writeObject("LOGIN:" + user + ":" + pass);
-                salida.flush();
-
-                ObjectInputStream entrada = new ObjectInputStream(socket.getInputStream());
-                boolean exito = (boolean) entrada.readObject();
-
-                if (exito) {
-                    System.out.println("Conectado al servidor correctamente.");
-                } else {
-                    System.out.println("El servidor rechazó la conexión.");
-                }
-            } catch (Exception ex) {
-                System.out.println("No se pudo conectar al servidor (modo local activo).");
-            }
-
-            // 4. Cargar la vista
+            // Si todo OK, cargar vista
             cargarVistaFeed();
         });
 
@@ -314,260 +313,274 @@ public class VentanaPrincipal extends JFrame {
     // ---------------------------------------------------------
     // VISTA 2: REGISTRO
     // ---------------------------------------------------------
-private void cargarVistaRegistro() {
-    getContentPane().removeAll();
-    getContentPane().setLayout(null);
-    getContentPane().setBackground(COLOR_FONDO);
+    private void cargarVistaRegistro() {
+        getContentPane().removeAll();
+        getContentPane().setLayout(null);
+        getContentPane().setBackground(COLOR_FONDO);
 
-    JLabel lblTitulo = new JLabel("Crear Cuenta");
-    lblTitulo.setFont(new Font("Arial", Font.BOLD, 24));
-    lblTitulo.setHorizontalAlignment(SwingConstants.CENTER);
+        JLabel lblTitulo = new JLabel("Crear Cuenta");
+        lblTitulo.setFont(new Font("Arial", Font.BOLD, 24));
+        lblTitulo.setHorizontalAlignment(SwingConstants.CENTER);
 
-    // --- NUEVO: SELECTOR DE FOTO ---
-    JLabel lblFotoPreview = new JLabel();
-    lblFotoPreview.setHorizontalAlignment(SwingConstants.CENTER);
-    lblFotoPreview.setOpaque(true);
-    lblFotoPreview.setBackground(new Color(230, 230, 230));
-    lblFotoPreview.setBorder(new LineBorder(new Color(200, 200, 200), 2, true));
-    lblFotoPreview.setCursor(new Cursor(Cursor.HAND_CURSOR));
-    lblFotoPreview.setToolTipText("Haz clic para subir foto");
-    
-    // Variable temporal para guardar el archivo seleccionado
-    final File[] archivoSeleccionado = {null};
+        // --- NUEVO: SELECTOR DE FOTO ---
+        JLabel lblFotoPreview = new JLabel();
+        lblFotoPreview.setHorizontalAlignment(SwingConstants.CENTER);
+        lblFotoPreview.setOpaque(true);
+        lblFotoPreview.setBackground(new Color(230, 230, 230));
+        lblFotoPreview.setBorder(new LineBorder(new Color(200, 200, 200), 2, true));
+        lblFotoPreview.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        lblFotoPreview.setToolTipText("Haz clic para subir foto");
 
-    // Acción para seleccionar imagen
-    lblFotoPreview.addMouseListener(new MouseAdapter() {
-        @Override
-        public void mouseClicked(MouseEvent e) {
-            JFileChooser fc = new JFileChooser();
-            fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Imágenes", "jpg", "png", "jpeg"));
-            int res = fc.showOpenDialog(null);
-            if (res == JFileChooser.APPROVE_OPTION) {
-                archivoSeleccionado[0] = fc.getSelectedFile();
-                // Mostrar preview
-                ImageIcon icon = new ImageIcon(archivoSeleccionado[0].getAbsolutePath());
-                Image img = icon.getImage().getScaledInstance(100, 100, Image.SCALE_SMOOTH);
-                lblFotoPreview.setIcon(new ImageIcon(img));
-                lblFotoPreview.setText("");
+        // Variable temporal para guardar el archivo seleccionado
+        final File[] archivoSeleccionado = {null};
+
+        // Acción para seleccionar imagen
+        lblFotoPreview.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                JFileChooser fc = new JFileChooser();
+                fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Imágenes", "jpg", "png", "jpeg"));
+                int res = fc.showOpenDialog(null);
+                if (res == JFileChooser.APPROVE_OPTION) {
+                    archivoSeleccionado[0] = fc.getSelectedFile();
+                    // Mostrar preview
+                    ImageIcon icon = new ImageIcon(archivoSeleccionado[0].getAbsolutePath());
+                    Image img = icon.getImage().getScaledInstance(100, 100, Image.SCALE_SMOOTH);
+                    lblFotoPreview.setIcon(new ImageIcon(img));
+                    lblFotoPreview.setText("");
+                }
             }
-        }
-    });
-    
-    JLabel lblErrorNombre = crearLabelError();
-    JTextField txtNombre = crearTextField("Nombre Completo");
+        });
 
-    JLabel lblErrorUser = crearLabelError();
-    JPanel panelUser = crearPanelConIconoDerecho("Username");
+        JLabel lblErrorNombre = crearLabelError();
+        JTextField txtNombre = crearTextField("Nombre Completo");
 
-    JLabel lblErrorPass = crearLabelError();
-    JPanel panelPass = crearPanelPassword();
+        JLabel lblErrorUser = crearLabelError();
+        JPanel panelUser = crearPanelConIconoDerecho("Username");
 
-    JLabel lblErrorEdad = crearLabelError();
-    JSpinner spnEdad = crearSpinnerPersonalizado(18);
+        JLabel lblErrorPass = crearLabelError();
+        JPanel panelPass = crearPanelPassword();
 
-    JComboBox<String> cmbGenero = new JComboBox<>();
-    cmbGenero.addItem("Masculino");
-    cmbGenero.addItem("Femenino");
-    estilizarComboBox(cmbGenero);
+        JLabel lblErrorEdad = crearLabelError();
+        JSpinner spnEdad = crearSpinnerPersonalizado(18);
 
-    JComboBox<String> cmbTipo = new JComboBox<>();
-    cmbTipo.addItem("Pública");
-    cmbTipo.addItem("Privada");
-    estilizarComboBox(cmbTipo);
+        JComboBox<String> cmbGenero = new JComboBox<>();
+        cmbGenero.addItem("Masculino");
+        cmbGenero.addItem("Femenino");
+        estilizarComboBox(cmbGenero);
 
-    JButton btnRegistrar = new JButton("Registrarse");
-    btnRegistrar.setFont(new Font("Arial", Font.BOLD, 14));
-    btnRegistrar.setOpaque(true);
-    btnRegistrar.setBorderPainted(false);
-    btnRegistrar.setFocusPainted(false);
-    btnRegistrar.setBackground(COLOR_DISABLED);
-    btnRegistrar.setForeground(COLOR_TEXT_DISABLED);
-    btnRegistrar.setEnabled(false);
+        JComboBox<String> cmbTipo = new JComboBox<>();
+        cmbTipo.addItem("Pública");
+        cmbTipo.addItem("Privada");
+        estilizarComboBox(cmbTipo);
 
-    JLabel btnVolver = new JLabel("¿Ya tienes cuenta? Volver");
-    btnVolver.setForeground(COLOR_BOTTON);
-    btnVolver.setFont(new Font("Arial", Font.BOLD, 12));
-    btnVolver.setCursor(new Cursor(Cursor.HAND_CURSOR));
-    btnVolver.setSize(btnVolver.getPreferredSize());
+        JButton btnRegistrar = new JButton("Registrarse");
+        btnRegistrar.setFont(new Font("Arial", Font.BOLD, 14));
+        btnRegistrar.setOpaque(true);
+        btnRegistrar.setBorderPainted(false);
+        btnRegistrar.setFocusPainted(false);
+        btnRegistrar.setBackground(COLOR_DISABLED);
+        btnRegistrar.setForeground(COLOR_TEXT_DISABLED);
+        btnRegistrar.setEnabled(false);
 
-    int anchoInputs = 320;
-    int altoInput = 36;
-    int xInputs = (1366 - anchoInputs) / 2;
-    int y = 80;
+        JLabel btnVolver = new JLabel("¿Ya tienes cuenta? Volver");
+        btnVolver.setForeground(COLOR_BOTTON);
+        btnVolver.setFont(new Font("Arial", Font.BOLD, 12));
+        btnVolver.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnVolver.setSize(btnVolver.getPreferredSize());
 
-    lblTitulo.setBounds(xInputs, y, anchoInputs, 40);
-    y += 50;
-    
-    // Posicionar preview de foto
-    int anchoFoto = 100;
-    lblFotoPreview.setBounds(xInputs + (anchoInputs - anchoFoto) / 2, y, anchoFoto, anchoFoto);
-    lblFotoPreview.setText("📷"); // Texto inicial
-    lblFotoPreview.setFont(new Font("Arial", Font.PLAIN, 30));
-    y += 120; // Espacio debajo de la foto
+        int anchoInputs = 320;
+        int altoInput = 36;
+        int xInputs = (1366 - anchoInputs) / 2;
+        int y = 80;
 
-    txtNombre.setBounds(xInputs, y, anchoInputs, altoInput);
-    lblErrorNombre.setBounds(xInputs, y + altoInput + 2, anchoInputs, 20);
-    y += 60;
-    panelUser.setBounds(xInputs, y, anchoInputs, altoInput);
-    lblErrorUser.setBounds(xInputs, y + altoInput + 2, anchoInputs, 20);
-    y += 60;
-    panelPass.setBounds(xInputs, y, anchoInputs, altoInput);
-    lblErrorPass.setBounds(xInputs, y + altoInput + 2, anchoInputs, 20);
-    y += 60;
+        lblTitulo.setBounds(xInputs, y, anchoInputs, 40);
+        y += 50;
 
-    JLabel lblEdad = new JLabel("Edad:");
-    lblEdad.setFont(new Font("Arial", Font.BOLD, 12));
-    lblEdad.setBounds(xInputs, y, 100, 20);
-    spnEdad.setBounds(xInputs, y + 20, 80, 30);
-    lblErrorEdad.setBounds(xInputs, y + 52, 150, 15);
+        // Posicionar preview de foto
+        int anchoFoto = 100;
+        lblFotoPreview.setBounds(xInputs + (anchoInputs - anchoFoto) / 2, y, anchoFoto, anchoFoto);
+        lblFotoPreview.setText("📷"); // Texto inicial
+        lblFotoPreview.setFont(new Font("Arial", Font.PLAIN, 30));
+        y += 120; // Espacio debajo de la foto
 
-    JLabel lblGenero = new JLabel("Género:");
-    lblGenero.setFont(new Font("Arial", Font.BOLD, 12));
-    lblGenero.setBounds(xInputs + 160, y, 100, 20);
-    cmbGenero.setBounds(xInputs + 160, y + 20, 140, 30);
-    y += 75;
+        txtNombre.setBounds(xInputs, y, anchoInputs, altoInput);
+        lblErrorNombre.setBounds(xInputs, y + altoInput + 2, anchoInputs, 20);
+        y += 60;
+        panelUser.setBounds(xInputs, y, anchoInputs, altoInput);
+        lblErrorUser.setBounds(xInputs, y + altoInput + 2, anchoInputs, 20);
+        y += 60;
+        panelPass.setBounds(xInputs, y, anchoInputs, altoInput);
+        lblErrorPass.setBounds(xInputs, y + altoInput + 2, anchoInputs, 20);
+        y += 60;
 
-    JLabel lblTipo = new JLabel("Tipo Cuenta:");
-    lblTipo.setFont(new Font("Arial", Font.BOLD, 12));
-    lblTipo.setBounds(xInputs, y, 100, 20);
-    cmbTipo.setBounds(xInputs, y + 20, anchoInputs, 30);
-    y += 60;
+        JLabel lblEdad = new JLabel("Edad:");
+        lblEdad.setFont(new Font("Arial", Font.BOLD, 12));
+        lblEdad.setBounds(xInputs, y, 100, 20);
+        spnEdad.setBounds(xInputs, y + 20, 80, 30);
+        lblErrorEdad.setBounds(xInputs, y + 52, 150, 15);
 
-    btnRegistrar.setBounds(xInputs, y, anchoInputs, altoInput);
-    y += 50;
-    int anchoTextoVolver = btnVolver.getPreferredSize().width;
-    btnVolver.setLocation(xInputs + (anchoInputs - anchoTextoVolver) / 2, y);
+        JLabel lblGenero = new JLabel("Género:");
+        lblGenero.setFont(new Font("Arial", Font.BOLD, 12));
+        lblGenero.setBounds(xInputs + 160, y, 100, 20);
+        cmbGenero.setBounds(xInputs + 160, y + 20, 140, 30);
+        y += 75;
 
-    add(lblTitulo);
-    add(lblFotoPreview); // Añadir preview
-    add(txtNombre);
-    add(lblErrorNombre);
-    add(panelUser);
-    add(lblErrorUser);
-    add(panelPass);
-    add(lblErrorPass);
-    add(spnEdad);
-    add(cmbGenero);
-    add(lblEdad);
-    add(lblGenero);
-    add(lblErrorEdad);
-    add(cmbTipo);
-    add(lblTipo);
-    add(btnRegistrar);
-    add(btnVolver);
+        JLabel lblTipo = new JLabel("Tipo Cuenta:");
+        lblTipo.setFont(new Font("Arial", Font.BOLD, 12));
+        lblTipo.setBounds(xInputs, y, 100, 20);
+        cmbTipo.setBounds(xInputs, y + 20, anchoInputs, 30);
+        y += 60;
 
-    JTextField txtUser = (JTextField) panelUser.getComponent(0);
-    JPasswordField txtPass = (JPasswordField) panelPass.getComponent(0);
-    JLabel lblIconoCheck = (JLabel) panelUser.getComponent(1);
+        btnRegistrar.setBounds(xInputs, y, anchoInputs, altoInput);
+        y += 50;
+        int anchoTextoVolver = btnVolver.getPreferredSize().width;
+        btnVolver.setLocation(xInputs + (anchoInputs - anchoTextoVolver) / 2, y);
 
-    DocumentListener valListener = new DocumentListener() {
-        @Override
-        public void insertUpdate(DocumentEvent e) { validarTodo(); }
-        @Override
-        public void removeUpdate(DocumentEvent e) { validarTodo(); }
-        @Override
-        public void changedUpdate(DocumentEvent e) { validarTodo(); }
+        add(lblTitulo);
+        add(lblFotoPreview); // Añadir preview
+        add(txtNombre);
+        add(lblErrorNombre);
+        add(panelUser);
+        add(lblErrorUser);
+        add(panelPass);
+        add(lblErrorPass);
+        add(spnEdad);
+        add(cmbGenero);
+        add(lblEdad);
+        add(lblGenero);
+        add(lblErrorEdad);
+        add(cmbTipo);
+        add(lblTipo);
+        add(btnRegistrar);
+        add(btnVolver);
 
-        private void validarTodo() {
-            boolean todoOK = true;
+        JTextField txtUser = (JTextField) panelUser.getComponent(0);
+        JPasswordField txtPass = (JPasswordField) panelPass.getComponent(0);
+        JLabel lblIconoCheck = (JLabel) panelUser.getComponent(1);
+
+        DocumentListener valListener = new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                validarTodo();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                validarTodo();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                validarTodo();
+            }
+
+            private void validarTodo() {
+                boolean todoOK = true;
+                String nombre = txtNombre.getText();
+                if (nombre.equals("Nombre Completo") || nombre.isEmpty()) {
+                    todoOK = false;
+                }
+
+                String user = txtUser.getText();
+                lblErrorUser.setText("");
+                resetBorder(panelUser);
+                lblIconoCheck.setIcon(null);
+                if (user.isEmpty() || user.equals("Username")) {
+                    todoOK = false;
+                } else if (user.length() < 3) {
+                    lblErrorUser.setText("Debe superar los 3 caracteres.");
+                    ponerBordeRojo(panelUser);
+                    todoOK = false;
+                } else if (sistema.existeUsername(user)) {
+                    lblErrorUser.setText("El username ya existe.");
+                    ponerBordeRojo(panelUser);
+                    todoOK = false;
+                } else {
+                    if (iconCheck != null) {
+                        lblIconoCheck.setIcon(iconCheck);
+                    } else {
+                        lblIconoCheck.setText("✓");
+                    }
+                }
+
+                String pass = String.valueOf(txtPass.getPassword());
+                lblErrorPass.setText("");
+                resetBorder(panelPass);
+                if (pass.isEmpty() || pass.equals("Password")) {
+                    todoOK = false;
+                } else if (pass.length() < 6) {
+                    lblErrorPass.setText("Ingresa al menos 6 caracteres.");
+                    ponerBordeRojo(panelPass);
+                    todoOK = false;
+                }
+
+                int edad = (int) spnEdad.getValue();
+                lblErrorEdad.setText("");
+                resetBorder(spnEdad);
+                if (edad < 18) {
+                    lblErrorEdad.setText("Debes ser mayor de 18 años.");
+                    ponerBordeRojo(spnEdad);
+                    todoOK = false;
+                }
+
+                if (todoOK) {
+                    btnRegistrar.setEnabled(true);
+                    btnRegistrar.setBackground(COLOR_BOTTON);
+                    btnRegistrar.setForeground(Color.WHITE);
+                } else {
+                    btnRegistrar.setEnabled(false);
+                    btnRegistrar.setBackground(COLOR_DISABLED);
+                    btnRegistrar.setForeground(COLOR_TEXT_DISABLED);
+                }
+            }
+        };
+
+        txtNombre.getDocument().addDocumentListener(valListener);
+        txtUser.getDocument().addDocumentListener(valListener);
+        txtPass.getDocument().addDocumentListener(valListener);
+        spnEdad.addChangeListener(e -> valListener.changedUpdate(null));
+
+        btnVolver.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                inicializarComponentesLogin();
+            }
+        });
+
+        btnRegistrar.addActionListener(e -> {
             String nombre = txtNombre.getText();
-            if (nombre.equals("Nombre Completo") || nombre.isEmpty()) todoOK = false;
-
             String user = txtUser.getText();
-            lblErrorUser.setText("");
-            resetBorder(panelUser);
-            lblIconoCheck.setIcon(null);
-            if (user.isEmpty() || user.equals("Username")) {
-                todoOK = false;
-            } else if (user.length() < 3) {
-                lblErrorUser.setText("Debe superar los 3 caracteres.");
-                ponerBordeRojo(panelUser);
-                todoOK = false;
-            } else if (sistema.existeUsername(user)) {
-                lblErrorUser.setText("El username ya existe.");
-                ponerBordeRojo(panelUser);
-                todoOK = false;
-            } else {
-                if (iconCheck != null) lblIconoCheck.setIcon(iconCheck);
-                else lblIconoCheck.setText("✓");
-            }
-
             String pass = String.valueOf(txtPass.getPassword());
-            lblErrorPass.setText("");
-            resetBorder(panelPass);
-            if (pass.isEmpty() || pass.equals("Password")) {
-                todoOK = false;
-            } else if (pass.length() < 6) {
-                lblErrorPass.setText("Ingresa al menos 6 caracteres.");
-                ponerBordeRojo(panelPass);
-                todoOK = false;
-            }
-
             int edad = (int) spnEdad.getValue();
-            lblErrorEdad.setText("");
-            resetBorder(spnEdad);
-            if (edad < 18) {
-                lblErrorEdad.setText("Debes ser mayor de 18 años.");
-                ponerBordeRojo(spnEdad);
-                todoOK = false;
-            }
+            char genero = cmbGenero.getSelectedItem().toString().charAt(0);
+            TipoCuenta tipo = (cmbTipo.getSelectedIndex() == 0) ? TipoCuenta.PUBLICA : TipoCuenta.PRIVADA;
 
-            if (todoOK) {
-                btnRegistrar.setEnabled(true);
-                btnRegistrar.setBackground(COLOR_BOTTON);
-                btnRegistrar.setForeground(Color.WHITE);
+            String rutaFoto;
+
+            // --- LÓGICA DE FOTO ---
+            if (archivoSeleccionado[0] != null) {
+                // Si el usuario seleccionó foto, la guardamos en su carpeta
+                String nombreImg = "profile_" + System.currentTimeMillis();
+                rutaFoto = sistema.procesarYGuardarImagen(archivoSeleccionado[0], user, nombreImg);
             } else {
-                btnRegistrar.setEnabled(false);
-                btnRegistrar.setBackground(COLOR_DISABLED);
-                btnRegistrar.setForeground(COLOR_TEXT_DISABLED);
+                // Si no seleccionó foto, dejamos vacío (el sistema generará avatar automático)
+                rutaFoto = "";
             }
-        }
-    };
 
-    txtNombre.getDocument().addDocumentListener(valListener);
-    txtUser.getDocument().addDocumentListener(valListener);
-    txtPass.getDocument().addDocumentListener(valListener);
-    spnEdad.addChangeListener(e -> valListener.changedUpdate(null));
+            boolean exito = sistema.registrarUsuario(user, pass, nombre, genero, edad, rutaFoto, tipo);
+            if (exito) {
+                sistema.login(user, pass);
+                cargarVistaFeed();
+            } else {
+                lblErrorUser.setText("Error inesperado al registrar.");
+            }
+        });
 
-    btnVolver.addMouseListener(new MouseAdapter() {
-        @Override
-        public void mouseClicked(MouseEvent e) { inicializarComponentesLogin(); }
-    });
+        revalidate();
+        repaint();
+    }
 
-    btnRegistrar.addActionListener(e -> {
-        String nombre = txtNombre.getText();
-        String user = txtUser.getText();
-        String pass = String.valueOf(txtPass.getPassword());
-        int edad = (int) spnEdad.getValue();
-        char genero = cmbGenero.getSelectedItem().toString().charAt(0);
-        TipoCuenta tipo = (cmbTipo.getSelectedIndex() == 0) ? TipoCuenta.PUBLICA : TipoCuenta.PRIVADA;
-        
-        String rutaFoto;
-        
-        // --- LÓGICA DE FOTO ---
-        if (archivoSeleccionado[0] != null) {
-            // Si el usuario seleccionó foto, la guardamos en su carpeta
-            String nombreImg = "profile_" + System.currentTimeMillis();
-            rutaFoto = sistema.procesarYGuardarImagen(archivoSeleccionado[0], user, nombreImg);
-        } else {
-            // Si no seleccionó foto, dejamos vacío (el sistema generará avatar automático)
-            rutaFoto = ""; 
-        }
-
-        boolean exito = sistema.registrarUsuario(user, pass, nombre, genero, edad, rutaFoto, tipo);
-        if (exito) {
-            lblTitulo.setText("¡Cuenta Creada!");
-            lblTitulo.setForeground(new Color(0, 150, 0));
-            try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
-            inicializarComponentesLogin();
-        } else {
-            lblErrorUser.setText("Error inesperado al registrar.");
-        }
-    });
-
-    revalidate();
-    repaint();
-}
     // ---------------------------------------------------------
     // MÉTODOS AUXILIARES UI
     // ---------------------------------------------------------
@@ -893,37 +906,29 @@ private void cargarVistaRegistro() {
         });
 
         // --- BOTÓN SHARE ---
+           // --- BOTÓN SHARE ---
         JButton btnShare = new JButton();
-        if (sidebarIconsNormal.containsKey("Share")) {
-            btnShare.setIcon(sidebarIconsNormal.get("Share"));
-        } else {
-            btnShare.setText("✉️");
-        }
-        btnShare.setBorderPainted(false);
-        btnShare.setBackground(Color.WHITE);
-        btnShare.setFocusPainted(false);
-        btnShare.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
+        // ... configuración de icono ...
+        
         btnShare.addActionListener(ev -> {
             String destino = JOptionPane.showInputDialog(this, "¿A qué usuario quieres enviar este post?");
             if (destino != null && !destino.isEmpty()) {
+                // VALIDACIÓN DE PRIVACIDAD
+                if (!sistema.puedeCompartirPost(destino, p.getAutor())) {
+                    JOptionPane.showMessageDialog(this, 
+                        "No puedes compartir este post. El autor tiene cuenta privada y no son mutuales.", 
+                        "Error de Privacidad", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                
                 sistema.compartirPost(destino, p.getAutor(), p.getRutaImagen(), p.getContenido());
                 JOptionPane.showMessageDialog(this, "Post enviado a " + destino);
-
-                // Efecto visual de "presionado"
-                if (sidebarIconsBold.containsKey("Share")) {
-                    btnShare.setIcon(sidebarIconsBold.get("Share"));
-                }
-                Timer t = new Timer(1000, e -> {
-                    if (sidebarIconsNormal.containsKey("Share")) {
-                        btnShare.setIcon(sidebarIconsNormal.get("Share"));
-                    }
-                });
-                t.setRepeats(false);
-                t.start();
+                // Efecto visual
+                if (sidebarIconsBold.containsKey("Share")) btnShare.setIcon(sidebarIconsBold.get("Share"));
+                Timer t = new Timer(1000, e -> { if(sidebarIconsNormal.containsKey("Share")) btnShare.setIcon(sidebarIconsNormal.get("Share")); });
+                t.setRepeats(false); t.start();
             }
         });
-
         panelAcciones.add(btnLike);
         panelAcciones.add(btnComment);
         panelAcciones.add(btnShare);
@@ -1010,93 +1015,104 @@ private void cargarVistaRegistro() {
         dialog.setVisible(true);
     }
 
-    private void abrirDialogoNuevaPublicacion() {
-        JDialog dialog = new JDialog(this, "Nueva Publicación", true);
-        dialog.setSize(450, 450);
-        dialog.setLocationRelativeTo(this);
-        dialog.setLayout(new BorderLayout());
-        dialog.getContentPane().setBackground(COLOR_FONDO);
-        JPanel panelImg = new JPanel();
-        panelImg.setBackground(COLOR_FONDO);
-        JButton btnSeleccionar = new JButton("Seleccionar Imagen");
-        btnSeleccionar.setBackground(COLOR_BOTTON);
-        btnSeleccionar.setForeground(Color.WHITE);
-        btnSeleccionar.setFocusPainted(false);
-        JLabel lblRuta = new JLabel("Ninguna imagen seleccionada");
-        lblRuta.setForeground(COLOR_FONT);
-        panelImg.add(btnSeleccionar);
-        panelImg.add(lblRuta);
-        JTextArea txtContenido = new JTextArea();
-        txtContenido.setLineWrap(true);
-        txtContenido.setWrapStyleWord(true);
-        txtContenido.setFont(new Font("Arial", Font.PLAIN, 13));
-        JScrollPane scrollTxt = new JScrollPane(txtContenido);
-        scrollTxt.setBorder(BorderFactory.createTitledBorder("Contenido (Max 220 chars)"));
-        JPanel panelBotones = new JPanel();
-        JButton btnPublicar = new JButton("Publicar");
-        btnPublicar.setBackground(new Color(0, 150, 0));
-        btnPublicar.setForeground(Color.WHITE);
-        btnPublicar.setFocusPainted(false);
-        JButton btnCancelar = new JButton("Cancelar");
-        panelBotones.add(btnPublicar);
-        panelBotones.add(btnCancelar);
-        final String[] rutaSeleccionada = {""};
-        btnSeleccionar.addActionListener(e -> {
-            JFileChooser fc = new JFileChooser();
-            int res = fc.showOpenDialog(this);
-            if (res == JFileChooser.APPROVE_OPTION) {
+private void abrirDialogoNuevaPublicacion() {
+    JDialog dialog = new JDialog(this, "Nueva Publicación", true);
+    dialog.setSize(450, 450);
+    dialog.setLocationRelativeTo(this);
+    dialog.setLayout(new BorderLayout());
+    dialog.getContentPane().setBackground(COLOR_FONDO);
+
+    JPanel panelImg = new JPanel();
+    panelImg.setBackground(COLOR_FONDO);
+    JButton btnSeleccionar = new JButton("Seleccionar Imagen");
+    btnSeleccionar.setBackground(COLOR_BOTTON);
+    btnSeleccionar.setForeground(Color.WHITE);
+    btnSeleccionar.setFocusPainted(false);
+    JLabel lblRuta = new JLabel("Ninguna imagen seleccionada");
+    lblRuta.setForeground(COLOR_FONT);
+    panelImg.add(btnSeleccionar);
+    panelImg.add(lblRuta);
+
+    JTextArea txtContenido = new JTextArea();
+    txtContenido.setLineWrap(true);
+    txtContenido.setWrapStyleWord(true);
+    txtContenido.setFont(new Font("Arial", Font.PLAIN, 13));
+    JScrollPane scrollTxt = new JScrollPane(txtContenido);
+    scrollTxt.setBorder(BorderFactory.createTitledBorder("Contenido (Max 220 chars)"));
+
+    JPanel panelBotones = new JPanel();
+    JButton btnPublicar = new JButton("Publicar");
+    btnPublicar.setBackground(new Color(0, 150, 0));
+    btnPublicar.setForeground(Color.WHITE);
+    btnPublicar.setFocusPainted(false);
+    JButton btnCancelar = new JButton("Cancelar");
+    panelBotones.add(btnPublicar);
+    panelBotones.add(btnCancelar);
+
+    final String[] rutaSeleccionada = {""};
+
+    // --- ACCIÓN SELECCIONAR IMAGEN CON FILTRO ---
+    btnSeleccionar.addActionListener(e -> {
+        JFileChooser fc = new JFileChooser();
+        // FILTRO: Solo aceptar imágenes
+        FileNameExtensionFilter filter = new FileNameExtensionFilter("Archivos de Imagen", "jpg", "png", "jpeg", "gif");
+        fc.setFileFilter(filter);
+        fc.setAcceptAllFileFilterUsed(false); // Desactivar opción "Todos los archivos"
+
+        int res = fc.showOpenDialog(this);
+        if (res == JFileChooser.APPROVE_OPTION) {
+            // Validación extra por si acaso
+            String nombre = fc.getSelectedFile().getName().toLowerCase();
+            if (nombre.endsWith(".jpg") || nombre.endsWith(".png") || nombre.endsWith(".jpeg") || nombre.endsWith(".gif")) {
                 rutaSeleccionada[0] = fc.getSelectedFile().getAbsolutePath();
                 lblRuta.setText(fc.getSelectedFile().getName());
-            }
-        });
-        btnPublicar.addActionListener(e -> {
-            String texto = txtContenido.getText();
-            if (texto.isEmpty() || rutaSeleccionada[0].isEmpty()) {
-                JOptionPane.showMessageDialog(dialog, "Debes escribir algo y seleccionar una imagen.");
-                return;
-            }
-
-            // --- NUEVO: EXTRAER HASHTAGS Y MENCIONES AUTOMÁTICAMENTE ---
-            StringBuilder hashtags = new StringBuilder();
-            StringBuilder menciones = new StringBuilder();
-
-            // Separamos el texto por espacios para analizar cada palabra
-            for (String palabra : texto.split(" ")) {
-                if (palabra.startsWith("#")) {
-                    hashtags.append(palabra).append(" "); // Agregamos espacio para separar
-                } else if (palabra.startsWith("@")) {
-                    menciones.append(palabra).append(" ");
-                }
-            }
-            // -------------------------------------------------------------
-
-            String nombreImg = "post_" + System.currentTimeMillis();
-            File archivoOriginal = new File(rutaSeleccionada[0]);
-
-            // Usamos el método mejorado de Sistema para guardar la imagen
-            String rutaFinal = sistema.procesarYGuardarImagen(archivoOriginal, sistema.getUsuarioActual().getUsername(), nombreImg);
-
-            if (rutaFinal != null) {
-                // Pasamos los hashtags y menciones extraídos (trim elimina el último espacio sobrante)
-                boolean exito = sistema.crearPublicacion(texto, rutaFinal, hashtags.toString().trim(), menciones.toString().trim());
-
-                if (exito) {
-                    JOptionPane.showMessageDialog(dialog, "¡Publicado con éxito!");
-                    dialog.dispose();
-                    cargarVistaFeed(); // Recargamos el feed para ver el nuevo post
-                } else {
-                    JOptionPane.showMessageDialog(dialog, "Error al guardar la publicación.");
-                }
             } else {
-                JOptionPane.showMessageDialog(dialog, "Error al procesar la imagen.");
+                JOptionPane.showMessageDialog(this, "Solo se permiten archivos JPG, PNG, JPEG o GIF.");
             }
-        });
-        btnCancelar.addActionListener(e -> dialog.dispose());
-        dialog.add(panelImg, BorderLayout.NORTH);
-        dialog.add(scrollTxt, BorderLayout.CENTER);
-        dialog.add(panelBotones, BorderLayout.SOUTH);
-        dialog.setVisible(true);
-    }
+        }
+    });
+
+    // --- ACCIÓN PUBLICAR ---
+    btnPublicar.addActionListener(e -> {
+        String texto = txtContenido.getText();
+        if (texto.isEmpty() || rutaSeleccionada[0].isEmpty()) {
+            JOptionPane.showMessageDialog(dialog, "Debes escribir algo y seleccionar una imagen.");
+            return;
+        }
+
+        // Extraer Hashtags y Menciones
+        StringBuilder hashtags = new StringBuilder();
+        StringBuilder menciones = new StringBuilder();
+        for (String palabra : texto.split(" ")) {
+            if (palabra.startsWith("#")) hashtags.append(palabra).append(" ");
+            else if (palabra.startsWith("@")) menciones.append(palabra).append(" ");
+        }
+
+        String nombreImg = "post_" + System.currentTimeMillis();
+        File archivoOriginal = new File(rutaSeleccionada[0]);
+        String rutaFinal = sistema.procesarYGuardarImagen(archivoOriginal, sistema.getUsuarioActual().getUsername(), nombreImg);
+
+        if (rutaFinal != null) {
+            boolean exito = sistema.crearPublicacion(texto, rutaFinal, hashtags.toString().trim(), menciones.toString().trim());
+            if (exito) {
+                JOptionPane.showMessageDialog(dialog, "¡Publicado con éxito!");
+                dialog.dispose();
+                cargarVistaFeed();
+            } else {
+                JOptionPane.showMessageDialog(dialog, "Error al guardar la publicación.");
+            }
+        } else {
+            JOptionPane.showMessageDialog(dialog, "Error al procesar la imagen.");
+        }
+    });
+
+    btnCancelar.addActionListener(e -> dialog.dispose());
+
+    dialog.add(panelImg, BorderLayout.NORTH);
+    dialog.add(scrollTxt, BorderLayout.CENTER);
+    dialog.add(panelBotones, BorderLayout.SOUTH);
+    dialog.setVisible(true);
+}
 
     // ---------------------------------------------------------
     // SIDEBAR
@@ -1189,245 +1205,247 @@ private void cargarVistaRegistro() {
     // ---------------------------------------------------------
     // VISTA 4: PERFIL
     // ---------------------------------------------------------
-  private void cargarVistaPerfil(String usernameVisitar) {
-    vistaActual = "Profile"; // Definir vista actual
-    getContentPane().removeAll();
-    setLayout(new BorderLayout());
-    getContentPane().setBackground(COLOR_FONDO);
-    add(crearPanelSidebar(), BorderLayout.WEST); // Recrear sidebar con nuevo estado
+    private void cargarVistaPerfil(String usernameVisitar) {
+        vistaActual = "Profile"; // Definir vista actual
+        getContentPane().removeAll();
+        setLayout(new BorderLayout());
+        getContentPane().setBackground(COLOR_FONDO);
+        add(crearPanelSidebar(), BorderLayout.WEST); // Recrear sidebar con nuevo estado
 
-    JPanel panelContenido = new JPanel(new BorderLayout());
-    panelContenido.setBackground(COLOR_FONDO);
-    JPanel header = new JPanel(new BorderLayout());
-    header.setBackground(COLOR_FONDO);
-    header.setBorder(BorderFactory.createEmptyBorder(40, 50, 20, 50));
+        JPanel panelContenido = new JPanel(new BorderLayout());
+        panelContenido.setBackground(COLOR_FONDO);
+        JPanel header = new JPanel(new BorderLayout());
+        header.setBackground(COLOR_FONDO);
+        header.setBorder(BorderFactory.createEmptyBorder(40, 50, 20, 50));
 
-    // --- FOTO DE PERFIL ---
-    JLabel lblFoto = new JLabel();
-    lblFoto.setPreferredSize(new Dimension(150, 150));
-    lblFoto.setHorizontalAlignment(SwingConstants.CENTER);
-    ImageIcon iconoCircular = cargarFotoPerfil(usernameVisitar, 150);
-    if (iconoCircular != null) {
-        lblFoto.setIcon(iconoCircular);
-    } else {
-        lblFoto.setText("Foto");
-    }
-    lblFoto.setBorder(new LineBorder(new Color(230, 230, 230), 2, true));
-    header.add(lblFoto, BorderLayout.WEST);
-
-    // --- PANEL DE INFORMACIÓN (Derecha de la foto) ---
-    JPanel infoPanel = new JPanel();
-    infoPanel.setLayout(new BoxLayout(infoPanel, BoxLayout.Y_AXIS));
-    infoPanel.setBackground(COLOR_FONDO);
-    
-    // FILA 1: Username y Botones
-    JPanel fila1 = new JPanel(new FlowLayout(FlowLayout.LEFT));
-    fila1.setBackground(COLOR_FONDO);
-    JLabel lblUsername = new JLabel(usernameVisitar);
-    lblUsername.setFont(new Font("Arial", Font.BOLD, 24));
-    fila1.add(lblUsername);
-
-    // Lógica de botones según si es mi perfil o ajeno
-  // REEMPLAZA EL BLOQUE DEL BOTÓN SEGUIR EN cargarVistaPerfil
-if (!usernameVisitar.equals(sistema.getUsuarioActual().getUsername())) {
-    // --- PERFIL AJENO ---
-    JButton btnSeguir = new JButton();
-    btnSeguir.setFont(new Font("Arial", Font.BOLD, 12));
-    btnSeguir.setBorderPainted(false);
-    btnSeguir.setOpaque(true);
-    btnSeguir.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
-    // 1. Verificar estados
-    boolean loSigo = sistema.yaLoSigo(usernameVisitar);
-    boolean pendiente = sistema.solicitudPendiente(usernameVisitar);
-    Usuario objetivo = sistema.buscarUsuario(usernameVisitar);
-    
-    // 2. Configurar texto y color según estado
-    if (loSigo) {
-        btnSeguir.setText("Dejar de seguir");
-        btnSeguir.setBackground(new Color(240, 240, 240));
-        btnSeguir.setForeground(Color.BLACK);
-    } else if (pendiente) {
-        btnSeguir.setText("Solicitud enviada");
-        btnSeguir.setBackground(new Color(240, 240, 240));
-        btnSeguir.setForeground(Color.GRAY);
-        btnSeguir.setEnabled(false); // Opcional: desactivar el botón
-    } else {
-        btnSeguir.setText("Seguir");
-        btnSeguir.setBackground(COLOR_BOTTON);
-        btnSeguir.setForeground(Color.WHITE);
-    }
-
-    // 3. Acción del botón
-    btnSeguir.addActionListener(e -> {
-        if (loSigo) {
-            sistema.dejarDeSeguir(usernameVisitar);
-        } else if (!pendiente) {
-            sistema.seguirUsuario(usernameVisitar);
-        }
-        // Recargar siempre para actualizar el estado
-        cargarVistaPerfil(usernameVisitar);
-    });
-
-    fila1.add(Box.createHorizontalStrut(20));
-    fila1.add(btnSeguir);
-} else {
-        // --- MI PERFIL: EDITAR Y DESACTIVAR ---
-        JButton btnEditar = new JButton("Editar Perfil");
-        btnEditar.setFont(new Font("Arial", Font.BOLD, 12));
-        btnEditar.setBackground(COLOR_FIELD);
-        btnEditar.setBorderPainted(false);
-        btnEditar.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
-        // Acción para cambiar foto
-        btnEditar.addActionListener(ev -> {
-            JFileChooser fc = new JFileChooser();
-            fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Imágenes", "jpg", "png"));
-            int res = fc.showOpenDialog(this);
-
-            if (res == JFileChooser.APPROVE_OPTION) {
-                File archivo = fc.getSelectedFile();
-                String nombreImg = "profile_" + System.currentTimeMillis();
-                String ruta = sistema.procesarYGuardarImagen(archivo, sistema.getUsuarioActual().getUsername(), nombreImg);
-
-                if (ruta != null) {
-                    sistema.actualizarFotoPerfil(sistema.getUsuarioActual().getUsername(), ruta);
-                    cargarVistaPerfil(sistema.getUsuarioActual().getUsername()); // Recargar
-                } else {
-                    JOptionPane.showMessageDialog(this, "Error al guardar la foto.");
-                }
-            }
-        });
-
-        // Botón Desactivar Cuenta
-        JButton btnToggle = new JButton();
-        if (sistema.getUsuarioActual().getEstadoCuenta() == EstadoCuenta.ACTIVO) {
-            btnToggle.setText("Desactivar Cuenta");
-            btnToggle.setBackground(COLOR_ERROR);
+        // --- FOTO DE PERFIL ---
+        JLabel lblFoto = new JLabel();
+        lblFoto.setPreferredSize(new Dimension(150, 150));
+        lblFoto.setHorizontalAlignment(SwingConstants.CENTER);
+        ImageIcon iconoCircular = cargarFotoPerfil(usernameVisitar, 150);
+        if (iconoCircular != null) {
+            lblFoto.setIcon(iconoCircular);
         } else {
-            btnToggle.setText("Activar Cuenta");
-            btnToggle.setBackground(new Color(0, 150, 0));
+            lblFoto.setText("Foto");
         }
-        btnToggle.setForeground(Color.WHITE);
-        btnToggle.setFont(new Font("Arial", Font.BOLD, 12));
-        btnToggle.setBorderPainted(false);
-        btnToggle.setOpaque(true);
-        btnToggle.setFocusPainted(false);
-        btnToggle.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        lblFoto.setBorder(new LineBorder(new Color(230, 230, 230), 2, true));
+        header.add(lblFoto, BorderLayout.WEST);
 
-        btnToggle.addActionListener(ev -> {
-            int confirm = JOptionPane.showConfirmDialog(this,
-                    "¿Seguro que desea desactivar su cuenta? No aparecerá en búsquedas.",
-                    "Confirmar", JOptionPane.YES_NO_OPTION);
+        // --- PANEL DE INFORMACIÓN (Derecha de la foto) ---
+        JPanel infoPanel = new JPanel();
+        infoPanel.setLayout(new BoxLayout(infoPanel, BoxLayout.Y_AXIS));
+        infoPanel.setBackground(COLOR_FONDO);
 
-            if (confirm == JOptionPane.YES_OPTION) {
-                sistema.cambiarEstadoCuenta(EstadoCuenta.DESACTIVADO);
-                sistema.logout();
-                if (chatTimer != null) chatTimer.stop();
-                inicializarComponentesLogin();
+        // FILA 1: Username y Botones
+        JPanel fila1 = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        fila1.setBackground(COLOR_FONDO);
+        JLabel lblUsername = new JLabel(usernameVisitar);
+        lblUsername.setFont(new Font("Arial", Font.BOLD, 24));
+        fila1.add(lblUsername);
+
+        // Lógica de botones según si es mi perfil o ajeno
+        // REEMPLAZA EL BLOQUE DEL BOTÓN SEGUIR EN cargarVistaPerfil
+        if (!usernameVisitar.equals(sistema.getUsuarioActual().getUsername())) {
+            // --- PERFIL AJENO ---
+            JButton btnSeguir = new JButton();
+            btnSeguir.setFont(new Font("Arial", Font.BOLD, 12));
+            btnSeguir.setBorderPainted(false);
+            btnSeguir.setOpaque(true);
+            btnSeguir.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+            // 1. Verificar estados
+            boolean loSigo = sistema.yaLoSigo(usernameVisitar);
+            boolean pendiente = sistema.solicitudPendiente(usernameVisitar);
+            Usuario objetivo = sistema.buscarUsuario(usernameVisitar);
+
+            // 2. Configurar texto y color según estado
+            if (loSigo) {
+                btnSeguir.setText("Dejar de seguir");
+                btnSeguir.setBackground(new Color(240, 240, 240));
+                btnSeguir.setForeground(Color.BLACK);
+            } else if (pendiente) {
+                btnSeguir.setText("Solicitud enviada");
+                btnSeguir.setBackground(new Color(240, 240, 240));
+                btnSeguir.setForeground(Color.GRAY);
+                btnSeguir.setEnabled(false); // Opcional: desactivar el botón
+            } else {
+                btnSeguir.setText("Seguir");
+                btnSeguir.setBackground(COLOR_BOTTON);
+                btnSeguir.setForeground(Color.WHITE);
+            }
+
+            // 3. Acción del botón
+            btnSeguir.addActionListener(e -> {
+                if (loSigo) {
+                    sistema.dejarDeSeguir(usernameVisitar);
+                } else if (!pendiente) {
+                    sistema.seguirUsuario(usernameVisitar);
+                }
+                // Recargar siempre para actualizar el estado
+                cargarVistaPerfil(usernameVisitar);
+            });
+
+            fila1.add(Box.createHorizontalStrut(20));
+            fila1.add(btnSeguir);
+        } else {
+            // --- MI PERFIL: EDITAR Y DESACTIVAR ---
+            JButton btnEditar = new JButton("Editar Perfil");
+            btnEditar.setFont(new Font("Arial", Font.BOLD, 12));
+            btnEditar.setBackground(COLOR_FIELD);
+            btnEditar.setBorderPainted(false);
+            btnEditar.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+            // Acción para cambiar foto
+            btnEditar.addActionListener(ev -> {
+                JFileChooser fc = new JFileChooser();
+                fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Imágenes", "jpg", "png"));
+                int res = fc.showOpenDialog(this);
+
+                if (res == JFileChooser.APPROVE_OPTION) {
+                    File archivo = fc.getSelectedFile();
+                    String nombreImg = "profile_" + System.currentTimeMillis();
+                    String ruta = sistema.procesarYGuardarImagen(archivo, sistema.getUsuarioActual().getUsername(), nombreImg);
+
+                    if (ruta != null) {
+                        sistema.actualizarFotoPerfil(sistema.getUsuarioActual().getUsername(), ruta);
+                        cargarVistaPerfil(sistema.getUsuarioActual().getUsername()); // Recargar
+                    } else {
+                        JOptionPane.showMessageDialog(this, "Error al guardar la foto.");
+                    }
+                }
+            });
+
+            // Botón Desactivar Cuenta
+            JButton btnToggle = new JButton();
+            if (sistema.getUsuarioActual().getEstadoCuenta() == EstadoCuenta.ACTIVO) {
+                btnToggle.setText("Desactivar Cuenta");
+                btnToggle.setBackground(COLOR_ERROR);
+            } else {
+                btnToggle.setText("Activar Cuenta");
+                btnToggle.setBackground(new Color(0, 150, 0));
+            }
+            btnToggle.setForeground(Color.WHITE);
+            btnToggle.setFont(new Font("Arial", Font.BOLD, 12));
+            btnToggle.setBorderPainted(false);
+            btnToggle.setOpaque(true);
+            btnToggle.setFocusPainted(false);
+            btnToggle.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+            btnToggle.addActionListener(ev -> {
+                int confirm = JOptionPane.showConfirmDialog(this,
+                        "¿Seguro que desea desactivar su cuenta? No aparecerá en búsquedas.",
+                        "Confirmar", JOptionPane.YES_NO_OPTION);
+
+                if (confirm == JOptionPane.YES_OPTION) {
+                    sistema.cambiarEstadoCuenta(EstadoCuenta.DESACTIVADO);
+                    sistema.logout();
+                    if (chatTimer != null) {
+                        chatTimer.stop();
+                    }
+                    inicializarComponentesLogin();
+                }
+            });
+
+            fila1.add(Box.createHorizontalStrut(20));
+            fila1.add(btnEditar);
+            fila1.add(Box.createHorizontalStrut(10));
+            fila1.add(btnToggle);
+        }
+
+        // FILA 2: ESTADÍSTICAS (Posts, Followers, Following)
+        JPanel fila2 = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        fila2.setBackground(COLOR_FONDO);
+        int posts = sistema.getCantidadPosts(usernameVisitar);
+        int followers = sistema.getCantidadFollowers(usernameVisitar);
+        int following = sistema.getCantidadFollowing(usernameVisitar);
+
+        fila2.add(crearLabelStat(posts, "publicaciones"));
+        fila2.add(Box.createHorizontalStrut(25));
+
+        // Panel de Seguidores (Clickeable)
+        JPanel panelFollowers = crearLabelStat(followers, "seguidores");
+        panelFollowers.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        panelFollowers.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                mostrarListaUsuarios(sistema.getListaFollowers(usernameVisitar), "Seguidores");
             }
         });
+        fila2.add(panelFollowers);
+        fila2.add(Box.createHorizontalStrut(25));
 
-        fila1.add(Box.createHorizontalStrut(20));
-        fila1.add(btnEditar);
-        fila1.add(Box.createHorizontalStrut(10));
-        fila1.add(btnToggle);
-    }
-
-    // FILA 2: ESTADÍSTICAS (Posts, Followers, Following)
-    JPanel fila2 = new JPanel(new FlowLayout(FlowLayout.LEFT));
-    fila2.setBackground(COLOR_FONDO);
-    int posts = sistema.getCantidadPosts(usernameVisitar);
-    int followers = sistema.getCantidadFollowers(usernameVisitar);
-    int following = sistema.getCantidadFollowing(usernameVisitar);
-
-    fila2.add(crearLabelStat(posts, "publicaciones"));
-    fila2.add(Box.createHorizontalStrut(25));
-
-    // Panel de Seguidores (Clickeable)
-    JPanel panelFollowers = crearLabelStat(followers, "seguidores");
-    panelFollowers.setCursor(new Cursor(Cursor.HAND_CURSOR));
-    panelFollowers.addMouseListener(new MouseAdapter() {
-        @Override
-        public void mouseClicked(MouseEvent e) {
-            mostrarListaUsuarios(sistema.getListaFollowers(usernameVisitar), "Seguidores");
-        }
-    });
-    fila2.add(panelFollowers);
-    fila2.add(Box.createHorizontalStrut(25));
-
-    // Panel de Seguidos (Clickeable)
-    JPanel panelFollowing = crearLabelStat(following, "seguidos");
-    panelFollowing.setCursor(new Cursor(Cursor.HAND_CURSOR));
-    panelFollowing.addMouseListener(new MouseAdapter() {
-        @Override
-        public void mouseClicked(MouseEvent e) {
-            mostrarListaUsuarios(sistema.getListaFollowing(usernameVisitar), "Siguiendo");
-        }
-    });
-    fila2.add(panelFollowing);
-
-    // FILA 3: NOMBRE REAL
-    Usuario userVisitar = sistema.buscarUsuario(usernameVisitar);
-    String nombreReal = (userVisitar != null) ? userVisitar.getNombreCompleto() : "Nombre";
-    JLabel lblNombreReal = new JLabel(nombreReal);
-    lblNombreReal.setFont(new Font("Arial", Font.BOLD, 14));
-    JPanel fila3 = new JPanel(new FlowLayout(FlowLayout.LEFT));
-    fila3.setBackground(COLOR_FONDO);
-    fila3.add(lblNombreReal);
-
-    // Agregamos filas al panel de información
-    infoPanel.add(fila1);
-    infoPanel.add(fila2);
-    infoPanel.add(fila3);
-    
-    header.add(infoPanel, BorderLayout.CENTER);
-    panelContenido.add(header, BorderLayout.NORTH);
-
-    // --- GRID DE PUBLICACIONES (ABAJO) ---
-    JPanel gridPanel = new JPanel(new GridLayout(0, 4, 2, 2)); // 4 columnas para Desktop
-    gridPanel.setBackground(COLOR_FONDO);
-    gridPanel.setBorder(new EmptyBorder(20, 50, 20, 50));
-    
-    ArrayList<Publicacion> postsList = sistema.getPublicacionesDeUsuario(usernameVisitar);
-    
-    if (postsList.isEmpty()) {
-        JLabel lblVacio = new JLabel("No hay publicaciones aún.");
-        lblVacio.setHorizontalAlignment(SwingConstants.CENTER);
-        gridPanel.add(lblVacio);
-    } else {
-        for (Publicacion p : postsList) {
-            JPanel miniPanel = new JPanel(new BorderLayout());
-            miniPanel.setBackground(Color.WHITE);
-            miniPanel.setBorder(new LineBorder(new Color(230, 230, 230)));
-            
-            JLabel lblImg = new JLabel();
-            try {
-                if (p.getRutaImagen() != null) {
-                    ImageIcon icono = new ImageIcon(p.getRutaImagen());
-                    Image img = icono.getImage().getScaledInstance(200, 200, Image.SCALE_SMOOTH);
-                    lblImg.setIcon(new ImageIcon(img));
-                }
-            } catch (Exception ex) {
-                lblImg.setText("Error");
+        // Panel de Seguidos (Clickeable)
+        JPanel panelFollowing = crearLabelStat(following, "seguidos");
+        panelFollowing.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        panelFollowing.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                mostrarListaUsuarios(sistema.getListaFollowing(usernameVisitar), "Siguiendo");
             }
-            lblImg.setHorizontalAlignment(SwingConstants.CENTER);
-            miniPanel.add(lblImg, BorderLayout.CENTER);
-            gridPanel.add(miniPanel);
-        }
-    }
+        });
+        fila2.add(panelFollowing);
 
-    JScrollPane scrollGrid = new JScrollPane(gridPanel);
-    scrollGrid.setBorder(null);
-    scrollGrid.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-    personalizarScrollBar(scrollGrid);
-    
-    panelContenido.add(scrollGrid, BorderLayout.CENTER);
-    add(panelContenido, BorderLayout.CENTER);
-    
-    revalidate();
-    repaint();
-}
+        // FILA 3: NOMBRE REAL
+        Usuario userVisitar = sistema.buscarUsuario(usernameVisitar);
+        String nombreReal = (userVisitar != null) ? userVisitar.getNombreCompleto() : "Nombre";
+        JLabel lblNombreReal = new JLabel(nombreReal);
+        lblNombreReal.setFont(new Font("Arial", Font.BOLD, 14));
+        JPanel fila3 = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        fila3.setBackground(COLOR_FONDO);
+        fila3.add(lblNombreReal);
+
+        // Agregamos filas al panel de información
+        infoPanel.add(fila1);
+        infoPanel.add(fila2);
+        infoPanel.add(fila3);
+
+        header.add(infoPanel, BorderLayout.CENTER);
+        panelContenido.add(header, BorderLayout.NORTH);
+
+        // --- GRID DE PUBLICACIONES (ABAJO) ---
+        JPanel gridPanel = new JPanel(new GridLayout(0, 4, 2, 2)); // 4 columnas para Desktop
+        gridPanel.setBackground(COLOR_FONDO);
+        gridPanel.setBorder(new EmptyBorder(20, 50, 20, 50));
+
+        ArrayList<Publicacion> postsList = sistema.getPublicacionesDeUsuario(usernameVisitar);
+
+        if (postsList.isEmpty()) {
+            JLabel lblVacio = new JLabel("No hay publicaciones aún.");
+            lblVacio.setHorizontalAlignment(SwingConstants.CENTER);
+            gridPanel.add(lblVacio);
+        } else {
+            for (Publicacion p : postsList) {
+                JPanel miniPanel = new JPanel(new BorderLayout());
+                miniPanel.setBackground(Color.WHITE);
+                miniPanel.setBorder(new LineBorder(new Color(230, 230, 230)));
+
+                JLabel lblImg = new JLabel();
+                try {
+                    if (p.getRutaImagen() != null) {
+                        ImageIcon icono = new ImageIcon(p.getRutaImagen());
+                        Image img = icono.getImage().getScaledInstance(200, 200, Image.SCALE_SMOOTH);
+                        lblImg.setIcon(new ImageIcon(img));
+                    }
+                } catch (Exception ex) {
+                    lblImg.setText("Error");
+                }
+                lblImg.setHorizontalAlignment(SwingConstants.CENTER);
+                miniPanel.add(lblImg, BorderLayout.CENTER);
+                gridPanel.add(miniPanel);
+            }
+        }
+
+        JScrollPane scrollGrid = new JScrollPane(gridPanel);
+        scrollGrid.setBorder(null);
+        scrollGrid.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        personalizarScrollBar(scrollGrid);
+
+        panelContenido.add(scrollGrid, BorderLayout.CENTER);
+        add(panelContenido, BorderLayout.CENTER);
+
+        revalidate();
+        repaint();
+    }
 
     private JPanel crearLabelStat(int cantidad, String texto) {
         JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
@@ -1444,32 +1462,34 @@ if (!usernameVisitar.equals(sistema.getUsuarioActual().getUsername())) {
     // ---------------------------------------------------------
     // CARGA DE FOTO PERFIL
     // ---------------------------------------------------------
-private ImageIcon cargarFotoPerfil(String username, int diametro) {
-    Usuario u = sistema.buscarUsuario(username);
-    
-    // Si el usuario no existe, retornamos null (manejado en el llamador)
-    if (u == null) return crearAvatarDefault(username, diametro);
-    
-    String ruta = u.getFotoPerfil();
-    
-    // Si la ruta está vacía, es null o es el string literal "default_profile.png", generamos avatar
-    if (ruta == null || ruta.isEmpty() || ruta.equals("default_profile.png") || ruta.equals("null")) {
-        return crearAvatarDefault(username, diametro);
-    }
+    private ImageIcon cargarFotoPerfil(String username, int diametro) {
+        Usuario u = sistema.buscarUsuario(username);
 
-    try {
-        File f = new File(ruta);
-        if (f.exists()) {
-            ImageIcon icon = new ImageIcon(ruta);
-            return crearIconoCircular(icon, diametro);
-        } else {
-            // Si el archivo no existe (borrado manual), generamos avatar
+        // Si el usuario no existe, retornamos null (manejado en el llamador)
+        if (u == null) {
             return crearAvatarDefault(username, diametro);
         }
-    } catch (Exception e) {
-        return crearAvatarDefault(username, diametro);
+
+        String ruta = u.getFotoPerfil();
+
+        // Si la ruta está vacía, es null o es el string literal "default_profile.png", generamos avatar
+        if (ruta == null || ruta.isEmpty() || ruta.equals("default_profile.png") || ruta.equals("null")) {
+            return crearAvatarDefault(username, diametro);
+        }
+
+        try {
+            File f = new File(ruta);
+            if (f.exists()) {
+                ImageIcon icon = new ImageIcon(ruta);
+                return crearIconoCircular(icon, diametro);
+            } else {
+                // Si el archivo no existe (borrado manual), generamos avatar
+                return crearAvatarDefault(username, diametro);
+            }
+        } catch (Exception e) {
+            return crearAvatarDefault(username, diametro);
+        }
     }
-}
 
     private ImageIcon crearAvatarDefault(String username, int diametro) {
         BufferedImage img = new BufferedImage(diametro, diametro, BufferedImage.TYPE_INT_ARGB);
@@ -1623,331 +1643,398 @@ private ImageIcon cargarFotoPerfil(String username, int diametro) {
         panel.add(btnVer, BorderLayout.EAST);
         return panel;
     }
+// ---------------------------------------------------------
+// VISTA 6: INBOX (CON FOTOS EN LISTA)
+// ---------------------------------------------------------
+private void cargarVistaInbox() {
+    vistaActual = "Messages";
+    if (chatTimer != null) chatTimer.stop();
+    
+    getContentPane().removeAll(); setLayout(new BorderLayout());
+    add(crearPanelSidebar(), BorderLayout.WEST);
 
-    // ---------------------------------------------------------
-    // VISTA 6: INBOX (CON CHAT LIVE)
-    // ---------------------------------------------------------
-    private void cargarVistaInbox() {
-        vistaActual = "Messages";
-        // Detenemos cualquier timer anterior si venimos de otro chat
-        if (chatTimer != null) {
-            chatTimer.stop();
-        }
+    JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+    split.setDividerLocation(250); split.setBorder(null);
 
-        getContentPane().removeAll();
-        setLayout(new BorderLayout());
-        getContentPane().setBackground(COLOR_FONDO);
-        add(crearPanelSidebar(), BorderLayout.WEST);
+    // --- IZQUIERDA: LISTA CHATS CON CAJITAS ---
+    JPanel panelLista = new JPanel(new BorderLayout());
+    panelLista.setBackground(new Color(250, 250, 250)); // Fondo gris claro
+    
+    JLabel lblTitulo = new JLabel("  Mensajes", SwingConstants.LEFT);
+    lblTitulo.setFont(new Font("Arial", Font.BOLD, 20));
+    lblTitulo.setBorder(BorderFactory.createEmptyBorder(15, 5, 15, 5));
+    panelLista.add(lblTitulo, BorderLayout.NORTH);
 
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        splitPane.setDividerLocation(250);
-        splitPane.setBorder(null);
-        splitPane.setBackground(COLOR_FONDO);
+    // Contenedor de las cajitas
+    JPanel contenedorChats = new JPanel();
+    contenedorChats.setLayout(new BoxLayout(contenedorChats, BoxLayout.Y_AXIS));
+    contenedorChats.setBackground(new Color(250, 250, 250));
+    contenedorChats.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10)); // Margen general
 
-        // --- Panel Izquierdo: Lista de Chats ---
-        JPanel panelLista = new JPanel(new BorderLayout());
-        panelLista.setBackground(Color.WHITE);
-        panelLista.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(220, 220, 220)));
+    JScrollPane scrollLista = new JScrollPane(contenedorChats);
+    scrollLista.setBorder(null);
+    scrollLista.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+    personalizarScrollBar(scrollLista);
+    
+    // Velocidad del scroll
+    scrollLista.getVerticalScrollBar().setUnitIncrement(16); 
+    
+    panelLista.add(scrollLista, BorderLayout.CENTER);
 
-        JLabel lblTituloInbox = new JLabel("Mensajes", SwingConstants.CENTER);
-        lblTituloInbox.setFont(new Font("Arial", Font.BOLD, 18));
-        lblTituloInbox.setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
-        panelLista.add(lblTituloInbox, BorderLayout.NORTH);
+    JButton btnNuevo = new JButton("Nuevo Mensaje");
+    btnNuevo.setBackground(COLOR_BOTTON); btnNuevo.setForeground(Color.WHITE);
+    panelLista.add(btnNuevo, BorderLayout.SOUTH);
 
-        DefaultListModel<String> modelChats = new DefaultListModel<>();
-        JList<String> listaChats = new JList<>(modelChats);
-        listaChats.setFont(new Font("Arial", Font.PLAIN, 14));
-        listaChats.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-        JScrollPane scrollLista = new JScrollPane(listaChats);
-        scrollLista.setBorder(null);
-        panelLista.add(scrollLista, BorderLayout.CENTER);
+    // --- DERECHA: PLACEHOLDER ---
+    JPanel panelChat = new JPanel(new BorderLayout());
+    panelChat.setBackground(COLOR_FONDO);
+    panelChat.add(new JLabel("Selecciona un chat", SwingConstants.CENTER), BorderLayout.CENTER);
 
-        JButton btnNuevoMsg = new JButton("Nuevo Mensaje");
-        btnNuevoMsg.setBackground(COLOR_BOTTON);
-        btnNuevoMsg.setForeground(Color.WHITE);
-        btnNuevoMsg.setFont(new Font("Arial", Font.BOLD, 12));
-        panelLista.add(btnNuevoMsg, BorderLayout.SOUTH);
+    split.setLeftComponent(panelLista);
+    split.setRightComponent(panelChat);
+    add(split, BorderLayout.CENTER);
 
-        ArrayList<String> chats = sistema.getChatsRecientes();
-        for (String u : chats) {
-            modelChats.addElement(u);
-        }
-        splitPane.setLeftComponent(panelLista);
+    // --- POBLAR LISTA ---
+    ArrayList<String> chats = sistema.getChatsRecientes();
+    for (String u : chats) {
+        // "La Cajita"
+        JPanel row = new JPanel(new BorderLayout());
+        row.setBackground(Color.WHITE);
+        // Borde visible: LineBorder (el cuadro) + EmptyBorder (espacio interno)
+        row.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(220, 220, 220), 1, true), // Borde redondeado
+            BorderFactory.createEmptyBorder(10, 10, 10, 10) // Relleno
+        ));
+        row.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        // Tamaño fijo para que no ocupen todo
+        row.setMaximumSize(new Dimension(230, 70));
+        row.setAlignmentX(Component.CENTER_ALIGNMENT); // Centrar la cajita
 
-        // --- Panel Derecho: Área de Chat ---
-        JPanel panelChat = new JPanel(new BorderLayout());
-        panelChat.setBackground(COLOR_FONDO);
-        JLabel lblSelecciona = new JLabel("Selecciona un chat", SwingConstants.CENTER);
-        lblSelecciona.setFont(new Font("Arial", Font.ITALIC, 16));
-        lblSelecciona.setForeground(COLOR_FONT);
-        panelChat.add(lblSelecciona, BorderLayout.CENTER);
-        splitPane.setRightComponent(panelChat);
+        JLabel lblFoto = new JLabel();
+        lblFoto.setIcon(crearIconoCircular(cargarFotoPerfil(u, 45), 45));
+        row.add(lblFoto, BorderLayout.WEST);
 
-        add(splitPane, BorderLayout.CENTER);
+        JLabel lblNombre = new JLabel("  " + u);
+        lblNombre.setFont(new Font("Arial", Font.BOLD, 14));
+        row.add(lblNombre, BorderLayout.CENTER);
 
-        // --- Evento al seleccionar un usuario de la lista ---
-        listaChats.addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) {
-                String seleccionado = listaChats.getSelectedValue();
-                if (seleccionado != null) {
-                    mostrarChatLive(panelChat, seleccionado); // NUEVO MÉTODO
-                }
+        // Interacción
+        row.addMouseListener(new MouseAdapter() {
+            public void mouseClicked(MouseEvent e) { 
+                lastMessageCount = 0; // Resetear scroll al abrir chat
+                mostrarChatLive(panelChat, u); 
             }
+            public void mouseEntered(MouseEvent e) { row.setBackground(new Color(245,245,245)); }
+            public void mouseExited(MouseEvent e) { row.setBackground(Color.WHITE); }
         });
 
-        btnNuevoMsg.addActionListener(e -> {
-            String destino = JOptionPane.showInputDialog(this, "Username del destinatario:");
-            if (destino != null && !destino.isEmpty()) {
-                if (sistema.buscarUsuario(destino) == null) {
-                    JOptionPane.showMessageDialog(this, "Usuario no encontrado.");
-                } else if (!sistema.puedeEnviarMensaje(destino)) {
-                    JOptionPane.showMessageDialog(this, "No puedes enviar mensaje a este usuario (Perfil Privado).");
-                } else {
-                    if (!modelChats.contains(destino)) {
-                        modelChats.addElement(destino);
-                    }
-                    listaChats.setSelectedValue(destino, true);
-                }
-            }
-        });
-
-        revalidate();
-        repaint();
+        contenedorChats.add(row);
+        contenedorChats.add(Box.createVerticalStrut(8)); // Espacio entre cajitas
     }
 
-    // --- NUEVO MÉTODO: Configura la UI del chat e inicia el Timer ---
-    private void mostrarChatLive(JPanel panelChat, String otroUsuario) {
-        if (chatTimer != null) {
-            chatTimer.stop();
+    // Evento nuevo mensaje
+    btnNuevo.addActionListener(e -> {
+        String destino = JOptionPane.showInputDialog(this, "Username:");
+        if (destino != null && !destino.isEmpty()) {
+            if (sistema.buscarUsuario(destino) == null) {
+                JOptionPane.showMessageDialog(this, "No existe.");
+            } else if (!sistema.puedeEnviarMensaje(destino)) {
+                 JOptionPane.showMessageDialog(this, "No puedes enviar (Privado).");
+            } else {
+                cargarVistaInbox();
+                mostrarChatLive(panelChat, destino);
+            }
         }
+    });
 
-        panelChat.removeAll();
-        panelChat.setLayout(new BorderLayout());
-        panelChat.setBackground(COLOR_FONDO);
+    revalidate(); repaint();
+}
 
-        // --- 1. CREAR EL PANEL DE MENSAJES PRIMERO ---
-        JPanel panelMensajes = new JPanel();
-        panelMensajes.setLayout(new BoxLayout(panelMensajes, BoxLayout.Y_AXIS));
-        panelMensajes.setBackground(COLOR_FONDO);
-        JScrollPane scrollMensajes = new JScrollPane(panelMensajes);
-        scrollMensajes.setBorder(null);
+private void mostrarChatLive(JPanel panelChat, String otro) {
+    if (chatTimer != null) chatTimer.stop();
 
-        // --- 2. LUEGO CREAR EL HEADER Y EL BOTÓN ELIMINAR ---
-        JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(Color.WHITE);
-        header.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(220, 220, 220)));
+    panelChat.removeAll();
+    panelChat.setLayout(new BorderLayout());
+    panelChat.setBackground(COLOR_FONDO);
 
-        JLabel lblNombre = new JLabel("  " + otroUsuario);
-        lblNombre.setFont(new Font("Arial", Font.BOLD, 16));
+    // 1. PANEL MENSAJES
+    JPanel panelMensajes = new JPanel();
+    panelMensajes.setLayout(new BoxLayout(panelMensajes, BoxLayout.Y_AXIS));
+    panelMensajes.setBackground(COLOR_FONDO);
 
-        JButton btnDelete = new JButton("Eliminar Chat");
-        btnDelete.setFont(new Font("Arial", Font.PLAIN, 10));
-        btnDelete.setForeground(COLOR_ERROR);
-        btnDelete.setBackground(Color.WHITE);
-        btnDelete.setBorderPainted(false);
+    // 2. SCROLL PANE (Configuración clave)
+    JScrollPane scrollMensajes = new JScrollPane(panelMensajes);
+    scrollMensajes.setBorder(null);
+    scrollMensajes.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+    scrollMensajes.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER); // SIN BARRA ABAJO
+    personalizarScrollBar(scrollMensajes); // Tu método de estilo
 
-        btnDelete.addActionListener(del -> {
-            int confirm = JOptionPane.showConfirmDialog(this, "¿Borrar historial con " + otroUsuario + "?", "Confirmar", JOptionPane.YES_NO_OPTION);
-            if (confirm == JOptionPane.YES_OPTION) {
-                sistema.eliminarConversacion(otroUsuario);
-                // AHORA SÍ PODEMOS USAR 'panelMensajes' PORQUE YA FUE CREADO ARRIBA
-                panelMensajes.removeAll();
-                panelMensajes.revalidate();
-                panelMensajes.repaint();
-            }
-        });
+    // 3. HEADER
+    JPanel header = new JPanel(new BorderLayout());
+    header.setBackground(Color.WHITE);
+    header.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(220, 220, 220)));
+    JLabel lblNombre = new JLabel("  " + otro);
+    lblNombre.setFont(new Font("Arial", Font.BOLD, 16));
+    JButton btnDelete = new JButton("Eliminar Chat");
+    btnDelete.setFont(new Font("Arial", Font.PLAIN, 10));
+    btnDelete.setForeground(COLOR_ERROR);
+    btnDelete.setBackground(Color.WHITE);
+    btnDelete.setBorderPainted(false);
+    btnDelete.addActionListener(del -> {
+        int confirm = JOptionPane.showConfirmDialog(this, "¿Borrar historial con " + otro + "?", "Confirmar", JOptionPane.YES_NO_OPTION);
+        if (confirm == JOptionPane.YES_OPTION) {
+            sistema.eliminarConversacion(otro);
+            lastMessageCount = 0; // Resetear contador
+            refrescarMensajes(panelMensajes, otro);
+        }
+    });
+    header.add(lblNombre, BorderLayout.WEST);
+    header.add(btnDelete, BorderLayout.EAST);
 
-        header.add(lblNombre, BorderLayout.WEST);
-        header.add(btnDelete, BorderLayout.EAST);
+    // 4. FOOTER (Inputs)
+    JPanel footer = new JPanel(new BorderLayout());
+    footer.setBackground(Color.WHITE);
+    footer.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+    JTextField txtInput = new JTextField();
+    txtInput.setFont(new Font("Arial", Font.PLAIN, 14));
+    JButton btnSend = new JButton("Enviar");
+    btnSend.setBackground(COLOR_BOTTON);
+    btnSend.setForeground(Color.WHITE);
+    btnSend.setFont(new Font("Arial", Font.BOLD, 12));
 
-        // --- 3. AÑADIR AL PANEL PRINCIPAL ---
-        panelChat.add(header, BorderLayout.NORTH);
-        panelChat.add(scrollMensajes, BorderLayout.CENTER);
-
-        // Footer (Input)
-        JPanel footer = new JPanel(new BorderLayout());
-        footer.setBackground(Color.WHITE);
-        footer.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-
-        JTextField txtInput = new JTextField();
-        txtInput.setFont(new Font("Arial", Font.PLAIN, 14));
-
-        JButton btnSend = new JButton("Enviar");
-        btnSend.setBackground(COLOR_BOTTON);
-        btnSend.setForeground(Color.WHITE);
-        btnSend.setFont(new Font("Arial", Font.BOLD, 12));
-        // --- NUEVO: BOTÓN STICKER ---
-        JButton btnSticker = new JButton("😀"); // Icono simple
-        btnSticker.setFont(new Font("Arial", Font.PLAIN, 16));
-        btnSticker.setBackground(COLOR_FIELD);
-        btnSticker.setFocusPainted(false);
-        btnSticker.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
-        // Acción del botón Sticker
-        // Acción del botón Sticker
-        btnSticker.addActionListener(ev -> {
-            // Obtenemos TODOS los stickers (globales + personales)
-            ArrayList<String> stickers = sistema.getTodosStickers(sistema.getUsuarioActual().getUsername());
-
-            // Creamos un modelo para la lista visual
-            DefaultListModel<String> model = new DefaultListModel<>();
-            model.addElement("--> Importar nuevo sticker..."); // Opción especial al inicio
-
-            for (String ruta : stickers) {
-                model.addElement(new File(ruta).getName()); // Mostramos solo el nombre
-            }
-
-            JList<String> listaVisual = new JList<>(model);
-            int opcion = JOptionPane.showConfirmDialog(this,
-                    new JScrollPane(listaVisual),
-                    "Mis Stickers",
-                    JOptionPane.OK_CANCEL_OPTION);
-
-            if (opcion == JOptionPane.OK_OPTION) {
-                String seleccionVisual = listaVisual.getSelectedValue();
-
-                // CASO 1: El usuario quiere importar
-                if (seleccionVisual != null && seleccionVisual.equals("--> Importar nuevo sticker...")) {
-                    JFileChooser fc = new JFileChooser();
-                    fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Imágenes", "png", "jpg", "jpeg"));
-                    int res = fc.showOpenDialog(this);
-
-                    if (res == JFileChooser.APPROVE_OPTION) {
-                        File archivo = fc.getSelectedFile();
-                        boolean exito = sistema.guardarStickerPersonal(archivo, sistema.getUsuarioActual().getUsername());
-                        if (exito) {
-                            JOptionPane.showMessageDialog(this, "Sticker importado con éxito.");
-                        }
-                    }
-                } // CASO 2: El usuario seleccionó un sticker existente
-                else if (seleccionVisual != null) {
-                    // Buscamos la ruta completa correspondiente al nombre
-                    String rutaCompleta = null;
-                    for (String ruta : stickers) {
-                        if (ruta.endsWith(seleccionVisual)) {
-                            rutaCompleta = ruta;
-                            break;
-                        }
-                    }
-
-                    if (rutaCompleta != null) {
-                        sistema.enviarMensaje(otroUsuario, rutaCompleta, "STICKER");
-                        refrescarMensajes(panelMensajes, otroUsuario);
-                    }
+    // Botón Sticker
+    JButton btnSticker = new JButton("😀");
+    btnSticker.setFont(new Font("Arial", Font.PLAIN, 16));
+    btnSticker.setBackground(COLOR_FIELD);
+    btnSticker.setFocusPainted(false);
+    btnSticker.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    btnSticker.addActionListener(ev -> {
+        ArrayList<String> stickers = sistema.getTodosStickers(sistema.getUsuarioActual().getUsername());
+        DefaultListModel<String> model = new DefaultListModel<>();
+        model.addElement("--> Importar nuevo sticker...");
+        for (String ruta : stickers) model.addElement(new File(ruta).getName());
+        JList<String> listaVisual = new JList<>(model);
+        int opcion = JOptionPane.showConfirmDialog(this, new JScrollPane(listaVisual), "Mis Stickers", JOptionPane.OK_CANCEL_OPTION);
+        if (opcion == JOptionPane.OK_OPTION && listaVisual.getSelectedValue() != null) {
+            String seleccionVisual = listaVisual.getSelectedValue();
+            if (seleccionVisual.equals("--> Importar nuevo sticker...")) {
+                JFileChooser fc = new JFileChooser();
+                fc.setFileFilter(new FileNameExtensionFilter("Imágenes", "png", "jpg", "jpeg"));
+                if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+                    sistema.guardarStickerPersonal(fc.getSelectedFile(), sistema.getUsuarioActual().getUsername());
+                }
+            } else {
+                String rutaCompleta = null;
+                for (String ruta : stickers) if (ruta.endsWith(seleccionVisual)) rutaCompleta = ruta;
+                if (rutaCompleta != null) {
+                    sistema.enviarMensaje(otro, rutaCompleta, "STICKER");
+                    lastMessageCount = 0; // Forzar refresco visual inmediato
+                    refrescarMensajes(panelMensajes, otro);
                 }
             }
-        });
+        }
+    });
 
-        footer.add(txtInput, BorderLayout.CENTER);
-        footer.add(btnSend, BorderLayout.EAST);
-        footer.add(btnSticker, BorderLayout.WEST); // Añadido a la izquierda
+    footer.add(txtInput, BorderLayout.CENTER);
+    footer.add(btnSend, BorderLayout.EAST);
+    footer.add(btnSticker, BorderLayout.WEST);
 
-        panelChat.add(footer, BorderLayout.SOUTH);
-        // Acción de Enviar
-        ActionListener sendAction = e -> {
-            String texto = txtInput.getText();
-            if (!texto.isEmpty()) {
-                sistema.enviarMensaje(otroUsuario, texto, "TEXTO");
-                txtInput.setText("");
-                refrescarMensajes(panelMensajes, otroUsuario); // Refresco inmediato
-            }
-        };
-        btnSend.addActionListener(sendAction);
-        txtInput.addActionListener(sendAction);
+    // Añadir todo al panel
+    panelChat.add(header, BorderLayout.NORTH);
+    panelChat.add(scrollMensajes, BorderLayout.CENTER);
+    panelChat.add(footer, BorderLayout.SOUTH);
 
-        // Carga inicial de mensajes
-        refrescarMensajes(panelMensajes, otroUsuario);
+    // Acciones
+    ActionListener sendAction = e -> {
+        if (!txtInput.getText().isEmpty()) {
+            sistema.enviarMensaje(otro, txtInput.getText(), "TEXTO");
+            txtInput.setText("");
+            lastMessageCount = 0; // Forzar refresco
+            refrescarMensajes(panelMensajes, otro);
+        }
+    };
+    btnSend.addActionListener(sendAction);
+    txtInput.addActionListener(sendAction);
 
-        // --- INICIO DEL TIMER (CHAT LIVE) ---
-        // Cada 2000 ms (2 segundos) se actualiza el panel
-        chatTimer = new Timer(2000, ev -> refrescarMensajes(panelMensajes, otroUsuario));
-        chatTimer.start();
+    // Carga inicial y Timer
+    lastMessageCount = 0; // Reseteamos al abrir chat nuevo
+    refrescarMensajes(panelMensajes, otro);
+    chatTimer = new Timer(2000, ev -> refrescarMensajes(panelMensajes, otro));
+    chatTimer.start();
 
-        panelChat.revalidate();
-        panelChat.repaint();
-    }
+    panelChat.revalidate();
+    panelChat.repaint();
+}
 
-    // --- NUEVO MÉTODO AUXILIAR: Solo actualiza los textos ---
-    private void refrescarMensajes(JPanel panelMensajes, String otroUsuario) {
-        sistema.marcarComoLeido(otroUsuario);
+    private void refrescarMensajes(JPanel panelMsgs, String otro) {
+        sistema.marcarComoLeido(otro);
 
-        panelMensajes.removeAll();
-        ArrayList<Mensaje> historial = sistema.getConversacion(otroUsuario);
+        ArrayList<Mensaje> hist = sistema.getConversacion(otro);
 
-        for (Mensaje m : historial) {
-            JPanel msgPanel = new JPanel(new BorderLayout());
-            msgPanel.setBackground(COLOR_FONDO);
-            msgPanel.setMaximumSize(new Dimension(450, Integer.MAX_VALUE));
+        // OPTIMIZACIÓN GLITCH: Solo refrescar si cambió el contenido
+        if (hist.size() == lastMessageCount) {
+            return;
+        }
+        lastMessageCount = hist.size();
 
-            // --- LÓGICA PARA DISTINGUIR TEXTO DE STICKER ---
-            // Asumimos que MensajeSticker devuelve la ruta en getContenido()
-            // Podemos saber si es sticker si la clase es MensajeSticker o si el contenido es una ruta conocida
+        // LÓGICA DE SCROLL:
+        // Guardamos la posición actual ANTES de tocar el panel
+        JScrollPane scrollParent = (JScrollPane) SwingUtilities.getAncestorOfClass(JScrollPane.class, panelMsgs);
+        JScrollBar verticalBar = (scrollParent != null) ? scrollParent.getVerticalScrollBar() : null;
+        int currentScrollValue = (verticalBar != null) ? verticalBar.getValue() : 0;
+        boolean wasAtBottom = (verticalBar != null && (verticalBar.getValue() >= verticalBar.getMaximum() - 200)); // 200px de margen
+
+        panelMsgs.removeAll();
+
+        Mensaje ultimoEnviado = null;
+
+        for (Mensaje m : hist) {
+            boolean soyYo = m.getEmisor().equals(sistema.getUsuarioActual().getUsername());
+            if (soyYo) ultimoEnviado = m;
+
+            JPanel rowPanel = new JPanel(new BorderLayout());
+            rowPanel.setOpaque(false);
+            rowPanel.setBorder(BorderFactory.createEmptyBorder(2, 10, 2, 10));
+
+            JPanel burbuja = new JPanel(new BorderLayout());
+            burbuja.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+
             boolean esSticker = m instanceof instagram.MensajeSticker;
-            // Si no tienes la instancia, puedes usar: m.getContenido().contains("stickers_globales");
 
             if (esSticker) {
-                // MOSTRAR IMAGEN
                 JLabel lblImg = new JLabel();
-                lblImg.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-
                 try {
                     File f = new File(m.getContenido());
                     if (f.exists()) {
                         ImageIcon icon = new ImageIcon(m.getContenido());
-                        // Escalamos el sticker a un tamaño fijo, ej: 100x100
                         Image img = icon.getImage().getScaledInstance(100, 100, Image.SCALE_SMOOTH);
                         lblImg.setIcon(new ImageIcon(img));
-                    } else {
-                        lblImg.setText("[Sticker no encontrado]");
-                    }
-                } catch (Exception e) {
-                    lblImg.setText("[Error sticker]");
-                }
-
-                // Alineación (Derecha si soy yo, Izquierda si es otro)
-                if (m.getEmisor().equals(sistema.getUsuarioActual().getUsername())) {
-                    msgPanel.add(lblImg, BorderLayout.EAST);
-                } else {
-                    msgPanel.add(lblImg, BorderLayout.WEST);
-                }
-
+                    } else { lblImg.setText("[Sticker]"); }
+                } catch (Exception e) { lblImg.setText("[Error]"); }
+                burbuja.add(lblImg, BorderLayout.CENTER);
+                burbuja.setBackground(Color.WHITE);
             } else {
-                // MOSTRAR TEXTO (Tu código anterior)
-                JTextArea txtMsg = new JTextArea(m.getContenido());
-                txtMsg.setLineWrap(true);
-                txtMsg.setWrapStyleWord(true);
-                txtMsg.setFont(new Font("Arial", Font.PLAIN, 12));
-                txtMsg.setEditable(false);
-                txtMsg.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-                txtMsg.setPreferredSize(new Dimension(300, 0));
+                String texto = m.getContenido();
+                if (texto.startsWith("SHARE|")) {
+                    // --- POST COMPARTIDO VISUAL ---
+                    String[] datos = texto.split("\\|");
+                    JPanel card = new JPanel(new BorderLayout());
+                    card.setBackground(Color.LIGHT_GRAY);
+                    card.setBorder(new LineBorder(Color.GRAY));
+                    card.setCursor(new Cursor(Cursor.HAND_CURSOR)); // Manito
+                    
+                    // Intentar cargar imagen
+                    JLabel imgLabel = new JLabel();
+                    try {
+                        File f = new File(datos[2]);
+                        if(f.exists()){
+                            ImageIcon icon = new ImageIcon(datos[2]);
+                            Image scaled = icon.getImage().getScaledInstance(150, 150, Image.SCALE_SMOOTH);
+                            imgLabel.setIcon(new ImageIcon(scaled));
+                        }
+                    } catch (Exception ex) {}
+                    card.add(imgLabel, BorderLayout.WEST);
 
-                if (m.getEmisor().equals(sistema.getUsuarioActual().getUsername())) {
-                    msgPanel.add(txtMsg, BorderLayout.EAST);
-                    txtMsg.setBackground(COLOR_BOTTON);
-                    txtMsg.setForeground(Color.WHITE);
+                    JPanel info = new JPanel(new GridLayout(2,1));
+                    info.setBackground(Color.WHITE);
+                    info.add(new JLabel("De: " + datos[1]));
+                    JTextArea txt = new JTextArea(datos.length > 3 ? datos[3] : "Ver post");
+                    txt.setWrapStyleWord(true); txt.setLineWrap(true); txt.setOpaque(false); txt.setEditable(false);
+                    info.add(txt);
+                    card.add(info, BorderLayout.CENTER);
+                    
+                    // Evento: Click para ver imagen completa
+                    card.addMouseListener(new MouseAdapter() {
+                        @Override
+                        public void mouseClicked(MouseEvent e) {
+                            try {
+                                File imgFile = new File(datos[2]);
+                                if(imgFile.exists()){
+                                    // Abrimos un diálogo simple con la imagen
+                                    JDialog d = new JDialog((Frame)null, "Post Compartido", true);
+                                    d.setSize(650, 700);
+                                 JLabel bigImg = new JLabel(new ImageIcon(new ImageIcon(datos[2]).getImage().getScaledInstance(600, 600, Image.SCALE_SMOOTH)));
+                                    d.add(new JScrollPane(bigImg));
+                                    d.setLocationRelativeTo(null);
+                                    d.setVisible(true);
+                                }
+                            } catch (Exception ex) {}
+                        }
+                    });
+
+                    burbuja.add(card, BorderLayout.CENTER);
+                    burbuja.setBackground(Color.WHITE);
                 } else {
-                    msgPanel.add(txtMsg, BorderLayout.WEST);
-                    txtMsg.setBackground(Color.WHITE);
+                    // Texto normal
+                    JTextArea txtMsg = new JTextArea(texto);
+                    txtMsg.setLineWrap(true); txtMsg.setWrapStyleWord(true);
+                    txtMsg.setFont(new Font("Arial", Font.PLAIN, 13)); txtMsg.setEditable(false); txtMsg.setOpaque(false);
+                    burbuja.add(txtMsg, BorderLayout.CENTER);
                 }
             }
 
-            panelMensajes.add(msgPanel);
-            panelMensajes.add(Box.createVerticalStrut(5));
+            // Alineación
+            if (soyYo) {
+                if (!esSticker && (m.getContenido() == null || !m.getContenido().startsWith("SHARE|"))) {
+                    burbuja.setBackground(COLOR_BOTTON);
+                } else {
+                    burbuja.setBackground(Color.WHITE); // Stickers/Shares alineados derecha pero fondo neutro
+                }
+                rowPanel.add(burbuja, BorderLayout.EAST);
+            } else {
+                if (!esSticker && (m.getContenido() == null || !m.getContenido().startsWith("SHARE|"))) {
+                    burbuja.setBackground(Color.WHITE);
+                    burbuja.setBorder(BorderFactory.createLineBorder(new Color(230, 230, 230)));
+                }
+                rowPanel.add(burbuja, BorderLayout.WEST);
+            }
+
+            panelMsgs.add(rowPanel);
+
+            // Fecha
+            JLabel lblFecha = new JLabel(m.getFecha() + " " + m.getHoraFormateada());
+            lblFecha.setFont(new Font("Arial", Font.PLAIN, 9));
+            lblFecha.setForeground(COLOR_FONT);
+            lblFecha.setBorder(BorderFactory.createEmptyBorder(0, 10, 5, 10));
+            JPanel dateRow = new JPanel(new BorderLayout());
+            dateRow.setOpaque(false);
+            if (soyYo) dateRow.add(lblFecha, BorderLayout.EAST);
+            else dateRow.add(lblFecha, BorderLayout.WEST);
+            panelMsgs.add(dateRow);
         }
 
-        // Auto-scroll
+        // Estado "Leído"
+        if (ultimoEnviado != null) {
+            // Solo mostramos "Leído" si el estado en el archivo es LEIDO
+            // Gracias a la lógica nueva en Sistema.java, esto funcionará
+            boolean esLeido = ultimoEnviado.getEstado().equals("LEIDO");
+            JLabel lblEstado = new JLabel(esLeido ? "Leído ✓✓" : "Enviado ✓");
+            lblEstado.setFont(new Font("Arial", Font.ITALIC, 10));
+            lblEstado.setForeground(esLeido ? COLOR_BOTTON : COLOR_FONT);
+            lblEstado.setBorder(BorderFactory.createEmptyBorder(0, 10, 10, 10));
+            
+            JPanel statusRow = new JPanel(new BorderLayout());
+            statusRow.setOpaque(false);
+            statusRow.add(lblEstado, BorderLayout.EAST);
+            panelMsgs.add(statusRow);
+        }
+
+        panelMsgs.revalidate();
+        panelMsgs.repaint();
+
+        // LÓGICA DE SCROLL FINAL
         SwingUtilities.invokeLater(() -> {
-            Container parent = panelMensajes.getParent();
-            if (parent instanceof JScrollPane) {
-                JScrollBar bar = ((JScrollPane) parent).getVerticalScrollBar();
-                bar.setValue(bar.getMaximum());
+            if (verticalBar != null) {
+                // Si estaba abajo, se queda abajo (para ver el nuevo mensaje)
+                if (wasAtBottom) {
+                    verticalBar.setValue(verticalBar.getMaximum());
+                } else {
+                    // Si estaba leyendo arriba, se queda donde estaba (NO SALTA)
+                    verticalBar.setValue(currentScrollValue);
+                }
             }
         });
-
-        panelMensajes.revalidate();
-        panelMensajes.repaint();
     }
-
     //Cargar Vista Notificaciones
     private void cargarVistaNotificaciones() {
         vistaActual = "Notifications";

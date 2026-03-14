@@ -11,8 +11,10 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Scanner;
 
@@ -42,7 +44,7 @@ public class Sistema {
         if (!stickersGlobal.exists()) {
             stickersGlobal.mkdirs();
         }
-        
+
         // CREAR STICKERS POR DEFECTO DESDE RECURSOS
         crearStickersPorDefecto();
 
@@ -56,14 +58,16 @@ public class Sistema {
             e.printStackTrace();
         }
     }
-    
+
     // ---------------------------------------------------------
     // NUEVO: COPIAR STICKERS DESDE RECURSOS DEL PROYECTO
     // ---------------------------------------------------------
     private void crearStickersPorDefecto() {
         String rutaCarpeta = RUTA_RAIZ + "/stickers_globales";
         File carpeta = new File(rutaCarpeta);
-        if (!carpeta.exists()) carpeta.mkdirs();
+        if (!carpeta.exists()) {
+            carpeta.mkdirs();
+        }
 
         // Estructura: { Nombre final en carpeta , Nombre archivo en /images }
         String[][] stickers = {
@@ -77,9 +81,9 @@ public class Sistema {
         for (String[] par : stickers) {
             String nombreFinal = par[0];
             String nombreOriginal = par[1];
-            
+
             File archivoDestino = new File(rutaCarpeta + "/" + nombreFinal);
-            
+
             // Solo copiamos si no existe ya
             if (!archivoDestino.exists()) {
                 try (InputStream is = getClass().getResourceAsStream("/images/" + nombreOriginal)) {
@@ -139,6 +143,11 @@ public class Sistema {
     // LOGIN
     // ---------------------------
     public boolean login(String username, String password) {
+        // VALIDACIÓN: Si ya tiene sesión activa, no permitir login
+        if (sesionActiva(username)) {
+            return false;
+        }
+
         try (Scanner sc = new Scanner(new File(RUTA_USERS))) {
             while (sc.hasNextLine()) {
                 String linea = sc.nextLine();
@@ -160,6 +169,10 @@ public class Sistema {
                     TipoCuenta tipo = TipoCuenta.valueOf(datos[7]);
 
                     usuarioActual = new Usuario(username, password, nombre, genero, edad, foto, fecha, tipo, estado);
+
+                    // ACCIÓN: Crear bloqueo de sesión al entrar
+                    crearBloqueoSesion();
+
                     return true;
                 }
             }
@@ -227,11 +240,11 @@ public class Sistema {
         }
 
         String[] archivos = {
-            "followers.ins", "following.ins", "insta.ins", 
+            "followers.ins", "following.ins", "insta.ins",
             "inbox.ins", "stickers.ins", "solicitudes.ins",
             "likes.ins", "comments.ins"
         };
-        
+
         for (String archivo : archivos) {
             File f = new File(rutaUser + "/" + archivo);
             try {
@@ -306,6 +319,7 @@ public class Sistema {
     // CERRAR SESIÓN
     // ---------------------------
     public void logout() {
+        eliminarBloqueoSesion();
         this.usuarioActual = null;
     }
 
@@ -375,7 +389,7 @@ public class Sistema {
     // ---------------------------
     public ArrayList<Publicacion> getPublicacionesDeUsuario(String username) {
         ArrayList<Publicacion> lista = new ArrayList<>();
-        
+
         Usuario userObjetivo = buscarUsuario(username);
         if (userObjetivo == null || userObjetivo.getEstadoCuenta() == EstadoCuenta.DESACTIVADO) {
             return lista;
@@ -521,38 +535,39 @@ public class Sistema {
         return yoLoSigo && elMeSigue;
     }
 
-    public boolean enviarMensaje(String receptorUsername, String contenido, String tipo) {
-        if (usuarioActual == null) {
-            return false;
-        }
+        public boolean enviarMensaje(String receptorUsername, String contenido, String tipo) {
+        if (usuarioActual == null || contenido.length() > 300) return false;
         
-        if (contenido.length() > 300) {
-            System.out.println("Error: El mensaje excede los 300 caracteres.");
-            return false;
-        }
-
         Mensaje nuevo;
-
         if ("STICKER".equals(tipo)) {
             nuevo = new MensajeSticker(usuarioActual.getUsername(), receptorUsername, contenido);
         } else {
             nuevo = new MensajeTexto(usuarioActual.getUsername(), receptorUsername, contenido);
         }
 
+        // 1. Guardar en inbox del RECEPTOR (NO_LEIDO)
+        nuevo.setEstado("NO_LEIDO");
         guardarMensaje(nuevo);
 
-        nuevo.setEstado("LEIDO"); 
+        // 2. Guardar copia en mi inbox (YO lo envío, así que para mí está "Enviado/Leído")
+        // Es importante guardar una copia para ver mi propio mensaje en el chat
+        Mensaje copiaMia;
+        if ("STICKER".equals(tipo)) {
+            copiaMia = new MensajeSticker(usuarioActual.getUsername(), receptorUsername, contenido);
+        } else {
+            copiaMia = new MensajeTexto(usuarioActual.getUsername(), receptorUsername, contenido);
+        }
+        copiaMia.setEstado("LEIDO"); // Para el emisor, siempre se ve como enviado
+        
         String rutaInboxMio = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins";
         try (FileWriter fw = new FileWriter(rutaInboxMio, true)) {
-            fw.write(nuevo.toFileString() + "\n");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+            fw.write(copiaMia.toFileString() + "\n");
+        } catch (IOException e) { e.printStackTrace(); }
 
         return true;
     }
 
-    public ArrayList<Mensaje> getConversacion(String otroUsuario) {
+       public ArrayList<Mensaje> getConversacion(String otroUsuario) {
         ArrayList<Mensaje> conversacion = new ArrayList<>();
         if (usuarioActual == null) return conversacion;
 
@@ -577,48 +592,74 @@ public class Sistema {
         } catch (Exception e) {
             e.printStackTrace();
         }
+      
         return conversacion;
     }
 
-    public void marcarComoLeido(String otroUsuario) {
+        public void marcarComoLeido(String otroUsuario) {
         if (usuarioActual == null) return;
 
-        String rutaInbox = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins";
-        File archivo = new File(rutaInbox);
-        if (!archivo.exists()) {
-            return;
+        // 1. Marcar en MI inbox (para que yo no los procese de nuevo)
+        String rutaInboxMio = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins";
+        File archivoMio = new File(rutaInboxMio);
+        ArrayList<String> lineasMias = new ArrayList<>();
+
+        if (archivoMio.exists()) {
+            try (Scanner sc = new Scanner(archivoMio)) {
+                while (sc.hasNextLine()) {
+                    String linea = sc.nextLine();
+                    Mensaje m = Mensaje.fromFileString(linea);
+                    if (m != null && m.getEmisor().equals(otroUsuario) && m.getEstado().equals("NO_LEIDO")) {
+                        m.setEstado("LEIDO");
+                        lineasMias.add(m.toFileString());
+                        
+                        // 2. ¡TRUCO LOCAL! También actualizo el archivo del OTRO
+                        // Para que cuando ÉL abra el chat, vea "Leído ✓✓"
+                        actualizarEstadoEnArchivoAjeno(otroUsuario, usuarioActual.getUsername(), m.getFecha(), m.getHora());
+                    } else {
+                        lineasMias.add(linea);
+                    }
+                }
+            } catch (Exception e) { e.printStackTrace(); }
+
+            try (FileWriter fw = new FileWriter(rutaInboxMio)) {
+                for (String l : lineasMias) fw.write(l + "\n");
+            } catch (IOException e) { e.printStackTrace(); }
         }
-
-        ArrayList<String> lineasActualizadas = new ArrayList<>();
-
-        try (Scanner sc = new Scanner(archivo)) {
+    }
+    
+    // Método auxiliar nuevo para actualizar el archivo del otro usuario
+    private void actualizarEstadoEnArchivoAjeno(String otroUsuario, String miUsername, LocalDate fecha, LocalTime hora) {
+        String rutaOtro = RUTA_RAIZ + "/" + otroUsuario + "/inbox.ins";
+        File archivoOtro = new File(rutaOtro);
+        if (!archivoOtro.exists()) return;
+        
+        ArrayList<String> lineasOtro = new ArrayList<>();
+        try (Scanner sc = new Scanner(archivoOtro)) {
             while (sc.hasNextLine()) {
                 String linea = sc.nextLine();
                 Mensaje m = Mensaje.fromFileString(linea);
-                if (m != null && m.getEmisor().equals(otroUsuario) && m.getEstado().equals("NO_LEIDO")) {
+                // Busco el mensaje que YO envié y que coincide fecha/hora
+                if (m != null && m.getEmisor().equals(miUsername) && m.getFecha().equals(fecha) && m.getHora().equals(hora)) {
                     m.setEstado("LEIDO");
-                    lineasActualizadas.add(m.toFileString());
-                } else if (m != null) {
-                    lineasActualizadas.add(linea);
+                    lineasOtro.add(m.toFileString());
+                } else {
+                    lineasOtro.add(linea);
                 }
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        try (FileWriter fw = new FileWriter(rutaInbox, false)) {
-            for (String l : lineasActualizadas) {
-                fw.write(l + "\n");
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        } catch (Exception e) {}
+        
+        try (FileWriter fw = new FileWriter(rutaOtro)) {
+            for (String l : lineasOtro) fw.write(l + "\n");
+        } catch (IOException e) {}
     }
 
     public ArrayList<String> getChatsRecientes() {
         ArrayList<String> usuarios = new ArrayList<>();
-        if(usuarioActual == null) return usuarios;
-        
+        if (usuarioActual == null) {
+            return usuarios;
+        }
+
         String rutaInbox = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins";
         File archivo = new File(rutaInbox);
 
@@ -658,7 +699,7 @@ public class Sistema {
         if (users != null) {
             for (String u : users) {
                 File f = new File(RUTA_RAIZ + "/" + u);
-                if(f.isDirectory() && !u.equals("stickers_globales")){
+                if (f.isDirectory() && !u.equals("stickers_globales")) {
                     ArrayList<Publicacion> posts = getPublicacionesDeUsuario(u);
                     for (Publicacion p : posts) {
                         if (p.getContenido() != null && p.getContenido().contains(hashtag)) {
@@ -671,6 +712,25 @@ public class Sistema {
         return resultados;
     }
 
+    public void compartirPost(String usernameDestino, String autorPost, String rutaImagen, String contenido) {
+        // Formato: SHARE|autorOriginal|rutaImagen|contenidoPreview
+        String msgData = "SHARE|" + autorPost + "|" + rutaImagen + "|" + contenido;
+        enviarMensaje(usernameDestino, msgData, "TEXTO"); // Lo enviamos como texto pero con tag SHARE
+    }
+        public boolean puedeCompartirPost(String usernameDestino, String autorPost) {
+        Usuario autor = buscarUsuario(autorPost);
+        Usuario destino = buscarUsuario(usernameDestino);
+        if (autor == null || destino == null) return false;
+
+        // Si el autor es público, cualquiera puede compartir
+        if (autor.getTipoCuenta() == TipoCuenta.PUBLICA) return true;
+
+        // Si es privado, deben ser mutuals (seguirse mutuamente)
+        boolean destinoSigueAutor = verificarEnArchivo(RUTA_RAIZ + "/" + usernameDestino + "/following.ins", autorPost);
+        boolean autorSigueDestino = verificarEnArchivo(RUTA_RAIZ + "/" + autorPost + "/following.ins", usernameDestino);
+        
+        return destinoSigueAutor && autorSigueDestino;
+    }
     // ---------------------------------------------------------
     // GESTIÓN DE ESTADO DE CUENTA
     // ---------------------------------------------------------
@@ -765,13 +825,15 @@ public class Sistema {
         try {
             String rutaCarpeta = RUTA_RAIZ + "/" + username + "/stickers_personales";
             File carpeta = new File(rutaCarpeta);
-            if (!carpeta.exists()) carpeta.mkdirs();
-            
+            if (!carpeta.exists()) {
+                carpeta.mkdirs();
+            }
+
             String nombre = "sticker_" + System.currentTimeMillis() + ".png";
             File destino = new File(rutaCarpeta + "/" + nombre);
-            
+
             java.nio.file.Files.copy(origen.toPath(), destino.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-            
+
             return true;
         } catch (IOException e) {
             e.printStackTrace();
@@ -782,14 +844,16 @@ public class Sistema {
     public ArrayList<String> getTodosStickers(String username) {
         ArrayList<String> lista = new ArrayList<>();
         lista.addAll(getStickersGlobales());
-        
+
         String rutaCarpeta = RUTA_RAIZ + "/" + username + "/stickers_personales";
         File carpeta = new File(rutaCarpeta);
         if (carpeta.exists()) {
-            String[] archivos = carpeta.list((dir, name) -> 
-                name.toLowerCase().endsWith(".png") || name.toLowerCase().endsWith(".jpg"));
+            String[] archivos = carpeta.list((dir, name)
+                    -> name.toLowerCase().endsWith(".png") || name.toLowerCase().endsWith(".jpg"));
             if (archivos != null) {
-                for (String f : archivos) lista.add(rutaCarpeta + "/" + f);
+                for (String f : archivos) {
+                    lista.add(rutaCarpeta + "/" + f);
+                }
             }
         }
         return lista;
@@ -798,22 +862,33 @@ public class Sistema {
     // ---------------------------------------------------------
     // GESTIÓN DE SOLICITUDES Y FOLLOWS
     // ---------------------------------------------------------
-    
     public boolean seguirUsuario(String usernameObjetivo) {
-        if (usuarioActual == null) return false; 
-        if (usernameObjetivo.equals(usuarioActual.getUsername())) return false; 
+        if (usuarioActual == null) {
+            return false;
+        }
+        if (usernameObjetivo.equals(usuarioActual.getUsername())) {
+            return false;
+        }
 
         Usuario objetivo = buscarUsuario(usernameObjetivo);
-        
+
         if (objetivo.getTipoCuenta() == TipoCuenta.PUBLICA) {
             String miFollowingPath = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins";
             String suFollowersPath = RUTA_RAIZ + "/" + usernameObjetivo + "/followers.ins";
 
-            if (verificarEnArchivo(miFollowingPath, usernameObjetivo)) return false;
+            if (verificarEnArchivo(miFollowingPath, usernameObjetivo)) {
+                return false;
+            }
 
-            try (FileWriter fw = new FileWriter(miFollowingPath, true)) { fw.write(usernameObjetivo + "\n"); } catch (IOException e) {}
-            try (FileWriter fw = new FileWriter(suFollowersPath, true)) { fw.write(usuarioActual.getUsername() + "\n"); } catch (IOException e) {}
-            
+            try (FileWriter fw = new FileWriter(miFollowingPath, true)) {
+                fw.write(usernameObjetivo + "\n");
+            } catch (IOException e) {
+            }
+            try (FileWriter fw = new FileWriter(suFollowersPath, true)) {
+                fw.write(usuarioActual.getUsername() + "\n");
+            } catch (IOException e) {
+            }
+
             return true;
         } else {
             return enviarSolicitud(usernameObjetivo);
@@ -821,22 +896,26 @@ public class Sistema {
     }
 
     public boolean dejarDeSeguir(String usernameObjetivo) {
-        if (usuarioActual == null) return false;
-        
+        if (usuarioActual == null) {
+            return false;
+        }
+
         String miFollowingPath = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins";
         String suFollowersPath = RUTA_RAIZ + "/" + usernameObjetivo + "/followers.ins";
 
         eliminarLineaDeArchivo(miFollowingPath, usernameObjetivo);
         eliminarLineaDeArchivo(suFollowersPath, usuarioActual.getUsername());
-        
+
         return true;
     }
 
     private boolean enviarSolicitud(String usernameObjetivo) {
         String rutaSolicitudes = RUTA_RAIZ + "/" + usernameObjetivo + "/solicitudes.ins";
-        
-        if (verificarEnArchivo(rutaSolicitudes, usuarioActual.getUsername())) return false;
-        
+
+        if (verificarEnArchivo(rutaSolicitudes, usuarioActual.getUsername())) {
+            return false;
+        }
+
         try (FileWriter fw = new FileWriter(rutaSolicitudes, true)) {
             fw.write(usuarioActual.getUsername() + "\n");
             return true;
@@ -850,8 +929,14 @@ public class Sistema {
         String rutaFollowers = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/followers.ins";
         String rutaFollowingSolicitante = RUTA_RAIZ + "/" + usernameSolicitante + "/following.ins";
 
-        try (FileWriter fw = new FileWriter(rutaFollowers, true)) { fw.write(usernameSolicitante + "\n"); } catch (IOException e) {}
-        try (FileWriter fw = new FileWriter(rutaFollowingSolicitante, true)) { fw.write(usuarioActual.getUsername() + "\n"); } catch (IOException e) {}
+        try (FileWriter fw = new FileWriter(rutaFollowers, true)) {
+            fw.write(usernameSolicitante + "\n");
+        } catch (IOException e) {
+        }
+        try (FileWriter fw = new FileWriter(rutaFollowingSolicitante, true)) {
+            fw.write(usuarioActual.getUsername() + "\n");
+        } catch (IOException e) {
+        }
 
         eliminarLineaDeArchivo(rutaSolicitudes, usernameSolicitante);
     }
@@ -863,13 +948,18 @@ public class Sistema {
 
     public ArrayList<String> getSolicitudes() {
         ArrayList<String> lista = new ArrayList<>();
-        if(usuarioActual == null) return lista;
+        if (usuarioActual == null) {
+            return lista;
+        }
         String ruta = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/solicitudes.ins";
         File f = new File(ruta);
-        if(f.exists()){
+        if (f.exists()) {
             try (Scanner sc = new Scanner(f)) {
-                while(sc.hasNextLine()) lista.add(sc.nextLine());
-            } catch (Exception e) {}
+                while (sc.hasNextLine()) {
+                    lista.add(sc.nextLine());
+                }
+            } catch (Exception e) {
+            }
         }
         return lista;
     }
@@ -877,14 +967,17 @@ public class Sistema {
     // ---------------------------------------------------------
     // GESTIÓN DE LIKES Y COMENTARIOS
     // ---------------------------------------------------------
-    
     public boolean darLike(String autorPost, String fechaPost) {
-        if (usuarioActual == null) return false;
-        
+        if (usuarioActual == null) {
+            return false;
+        }
+
         String rutaLikes = RUTA_RAIZ + "/" + autorPost + "/likes.ins";
         String lineaLike = autorPost + "|" + fechaPost + "|" + usuarioActual.getUsername();
 
-        if (verificarEnArchivo(rutaLikes, lineaLike)) return false;
+        if (verificarEnArchivo(rutaLikes, lineaLike)) {
+            return false;
+        }
 
         try (FileWriter fw = new FileWriter(rutaLikes, true)) {
             fw.write(lineaLike + "\n");
@@ -895,15 +988,19 @@ public class Sistema {
     }
 
     public boolean yaDioLike(String autorPost, String fechaPost) {
-        if (usuarioActual == null) return false;
+        if (usuarioActual == null) {
+            return false;
+        }
         String rutaLikes = RUTA_RAIZ + "/" + autorPost + "/likes.ins";
         String idBusqueda = autorPost + "|" + fechaPost + "|" + usuarioActual.getUsername();
         return verificarEnArchivo(rutaLikes, idBusqueda);
     }
 
     public boolean toggleLike(String autorPost, String fechaPost) {
-        if (usuarioActual == null) return false;
-        
+        if (usuarioActual == null) {
+            return false;
+        }
+
         String rutaLikes = RUTA_RAIZ + "/" + autorPost + "/likes.ins";
         String idLike = autorPost + "|" + fechaPost + "|" + usuarioActual.getUsername();
 
@@ -914,25 +1011,33 @@ public class Sistema {
             try (FileWriter fw = new FileWriter(rutaLikes, true)) {
                 fw.write(idLike + "\n");
                 return true;
-            } catch (IOException e) { return true; }
+            } catch (IOException e) {
+                return true;
+            }
         }
     }
 
     public void agregarComentario(String autorPost, String fechaPost, String comentario) {
-        if (usuarioActual == null) return;
+        if (usuarioActual == null) {
+            return;
+        }
         String rutaComments = RUTA_RAIZ + "/" + autorPost + "/comments.ins";
         String linea = fechaPost + "|" + usuarioActual.getUsername() + "|" + comentario;
-        
+
         try (FileWriter fw = new FileWriter(rutaComments, true)) {
             fw.write(linea + "\n");
-        } catch (IOException e) { e.printStackTrace(); }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     public ArrayList<String> getComentarios(String autorPost, String fechaPost) {
         ArrayList<String> lista = new ArrayList<>();
         String rutaComments = RUTA_RAIZ + "/" + autorPost + "/comments.ins";
         File f = new File(rutaComments);
-        if (!f.exists()) return lista;
+        if (!f.exists()) {
+            return lista;
+        }
 
         try (Scanner sc = new Scanner(f)) {
             while (sc.hasNextLine()) {
@@ -941,100 +1046,112 @@ public class Sistema {
                     lista.add(datos[1] + ": " + datos[2]);
                 }
             }
-        } catch (Exception e) {}
+        } catch (Exception e) {
+        }
         return lista;
     }
     
-    public void compartirPost(String usernameDestino, String autorPost, String rutaImagen, String contenido) {
-        String msg = "POST COMPARTIDO DE " + autorPost + ":\n" + contenido + "\n[Ver imagen: " + rutaImagen + "]";
-        enviarMensaje(usernameDestino, msg, "TEXTO");
-    }
-
     // ---------------------------------------------------------
     // MÉTODOS AUXILIARES ARCHIVOS
     // ---------------------------------------------------------
-    
     private void eliminarLineaDeArchivo(String ruta, String texto) {
         File archivo = new File(ruta);
         ArrayList<String> lineas = new ArrayList<>();
         try (Scanner sc = new Scanner(archivo)) {
             while (sc.hasNextLine()) {
                 String l = sc.nextLine();
-                if (!l.trim().equals(texto)) lineas.add(l);
+                if (!l.trim().equals(texto)) {
+                    lineas.add(l);
+                }
             }
-        } catch (Exception e) {}
+        } catch (Exception e) {
+        }
         try (FileWriter fw = new FileWriter(ruta)) {
-            for (String l : lineas) fw.write(l + "\n");
-        } catch (IOException e) {}
+            for (String l : lineas) {
+                fw.write(l + "\n");
+            }
+        } catch (IOException e) {
+        }
     }
-    
+
     // ---------------------------------------------------------
     // PROCESAMIENTO DE IMÁGENES
     // ---------------------------------------------------------
-    
     public String procesarYGuardarImagen(File original, String username, String nombreArchivo) {
         try {
             BufferedImage imgOriginal = javax.imageio.ImageIO.read(original);
-            
-            int anchoFinal = 600; 
+
+            int anchoFinal = 600;
             int altoFinal;
-            
+
             double ratio = (double) imgOriginal.getHeight() / imgOriginal.getWidth();
             altoFinal = (int) (anchoFinal * ratio);
-            
-            if (altoFinal > 800) altoFinal = 800; 
+
+            if (altoFinal > 800) {
+                altoFinal = 800;
+            }
 
             BufferedImage imgFinal = new BufferedImage(anchoFinal, altoFinal, BufferedImage.TYPE_INT_RGB);
             Graphics2D g2d = imgFinal.createGraphics();
             g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
             g2d.drawImage(imgOriginal, 0, 0, anchoFinal, altoFinal, null);
             g2d.dispose();
-            
+
             String rutaCarpeta = RUTA_RAIZ + "/" + username + "/imagenes";
             new File(rutaCarpeta).mkdirs();
             String rutaFinal = rutaCarpeta + "/" + nombreArchivo + ".jpg";
             javax.imageio.ImageIO.write(imgFinal, "jpg", new File(rutaFinal));
-            
+
             return rutaFinal;
         } catch (Exception e) {
             e.printStackTrace();
             return null;
         }
     }
-    
+
     public void eliminarConversacion(String otroUsuario) {
-        if(usuarioActual == null) return;
+        if (usuarioActual == null) {
+            return;
+        }
         String rutaInbox = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins";
         File archivo = new File(rutaInbox);
-        if (!archivo.exists()) return;
+        if (!archivo.exists()) {
+            return;
+        }
 
         ArrayList<String> lineas = new ArrayList<>();
-        
+
         try (Scanner sc = new Scanner(archivo)) {
             while (sc.hasNextLine()) {
                 String linea = sc.nextLine();
                 Mensaje m = Mensaje.fromFileString(linea);
-                if (m != null && 
-                   !( (m.getEmisor().equals(otroUsuario) && m.getReceptor().equals(usuarioActual.getUsername())) ||
-                      (m.getEmisor().equals(usuarioActual.getUsername()) && m.getReceptor().equals(otroUsuario)) )) {
+                if (m != null
+                        && !((m.getEmisor().equals(otroUsuario) && m.getReceptor().equals(usuarioActual.getUsername()))
+                        || (m.getEmisor().equals(usuarioActual.getUsername()) && m.getReceptor().equals(otroUsuario)))) {
                     lineas.add(linea);
                 }
             }
-        } catch (Exception e) {} 
-        
+        } catch (Exception e) {
+        }
+
         try (FileWriter fw = new FileWriter(rutaInbox)) {
-            for(String l : lineas) fw.write(l + "\n");
-        } catch (IOException e) {}
+            for (String l : lineas) {
+                fw.write(l + "\n");
+            }
+        } catch (IOException e) {
+        }
     }
-    
+
     public ArrayList<Publicacion> getMenciones() {
-        if (usuarioActual == null) return new ArrayList<>();
+        if (usuarioActual == null) {
+            return new ArrayList<>();
+        }
         ArrayList<Publicacion> menciones = new ArrayList<>();
-        
+
         String miUsername = usuarioActual.getUsername();
         File raiz = new File(RUTA_RAIZ);
         String[] carpetas = raiz.list();
-        
+
         if (carpetas != null) {
             for (String userFolder : carpetas) {
                 File f = new File(RUTA_RAIZ + "/" + userFolder);
@@ -1057,8 +1174,11 @@ public class Sistema {
         File f = new File(ruta);
         if (f.exists()) {
             try (Scanner sc = new Scanner(f)) {
-                while (sc.hasNextLine()) lista.add(sc.nextLine());
-            } catch (Exception e) {}
+                while (sc.hasNextLine()) {
+                    lista.add(sc.nextLine());
+                }
+            } catch (Exception e) {
+            }
         }
         return lista;
     }
@@ -1069,8 +1189,11 @@ public class Sistema {
         File f = new File(ruta);
         if (f.exists()) {
             try (Scanner sc = new Scanner(f)) {
-                while (sc.hasNextLine()) lista.add(sc.nextLine());
-            } catch (Exception e) {}
+                while (sc.hasNextLine()) {
+                    lista.add(sc.nextLine());
+                }
+            } catch (Exception e) {
+            }
         }
         return lista;
     }
@@ -1078,7 +1201,7 @@ public class Sistema {
     public boolean actualizarFotoPerfil(String username, String nuevaRuta) {
         File archivo = new File(RUTA_USERS);
         ArrayList<String> lineas = new ArrayList<>();
-        
+
         try (Scanner sc = new Scanner(archivo)) {
             while (sc.hasNextLine()) {
                 String linea = sc.nextLine();
@@ -1092,34 +1215,82 @@ public class Sistema {
                 }
                 lineas.add(linea);
             }
-        } catch (Exception e) { return false; }
-        
+        } catch (Exception e) {
+            return false;
+        }
+
         try (FileWriter fw = new FileWriter(RUTA_USERS)) {
-            for (String l : lineas) fw.write(l + "\n");
-        } catch (IOException e) { return false; }
-        
+            for (String l : lineas) {
+                fw.write(l + "\n");
+            }
+        } catch (IOException e) {
+            return false;
+        }
+
         return true;
     }
-    
+
     public ArrayList<String> getNotificacionesLikes() {
         ArrayList<String> notifs = new ArrayList<>();
-        if(usuarioActual == null) return notifs;
+        if (usuarioActual == null) {
+            return notifs;
+        }
+
         String ruta = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/likes.ins";
         File f = new File(ruta);
-        if(f.exists()){
+        if (f.exists()) {
             try (Scanner sc = new Scanner(f)) {
-                while(sc.hasNextLine()) {
-                    notifs.add(sc.nextLine()); 
+                while (sc.hasNextLine()) {
+                    notifs.add(sc.nextLine());
                 }
-            } catch (Exception e) {}
+            } catch (Exception e) {
+            }
         }
+
+        Collections.reverse(notifs);
+
         return notifs;
     }
-    
+
     public boolean solicitudPendiente(String usernameObjetivo) {
-    if (usuarioActual == null) return false;
-    String rutaSolicitudes = RUTA_RAIZ + "/" + usernameObjetivo + "/solicitudes.ins";
-    return verificarEnArchivo(rutaSolicitudes, usuarioActual.getUsername());
-}
-    
+        if (usuarioActual == null) {
+            return false;
+        }
+        String rutaSolicitudes = RUTA_RAIZ + "/" + usernameObjetivo + "/solicitudes.ins";
+        return verificarEnArchivo(rutaSolicitudes, usuarioActual.getUsername());
+    }
+    // ---------------------------------------------------------
+// CONTROL DE SESIÓN ÚNICA (LOCK FILE)
+// ---------------------------------------------------------
+
+// 1. Verificar si ya hay una sesión activa
+    public boolean sesionActiva(String username) {
+        File lock = new File(RUTA_RAIZ + "/" + username + "/session.lock");
+        return lock.exists();
+    }
+
+// 2. Crear archivo de bloqueo (llamado al hacer login)
+    private void crearBloqueoSesion() {
+        if (usuarioActual == null) {
+            return;
+        }
+        try {
+            File lock = new File(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/session.lock");
+            lock.createNewFile();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+// 3. Eliminar archivo de bloqueo (llamado al hacer logout o cerrar ventana)
+    private void eliminarBloqueoSesion() {
+        if (usuarioActual == null) {
+            return;
+        }
+        File lock = new File(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/session.lock");
+        if (lock.exists()) {
+            lock.delete();
+        }
+    }
+
 }

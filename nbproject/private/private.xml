@@ -5,18 +5,8 @@
         <group>
             <file>file:/C:/ProyectosJava/Instagram/src/instagram/Sistema.java</file>
             <file>file:/C:/ProyectosJava/Instagram/src/instagram/Usuario.java</file>
-            <file>file:/C:/ProyectosJava/Instagram/src/instagram/Publicacion.java</file>
-            <file>file:/C:/ProyectosJava/Instagram/src/instagram/NodoUsuario.java</file>
-            <file>file:/C:/ProyectosJava/Instagram/src/instagram/MensajeTexto.java</file>
-            <file>file:/C:/ProyectosJava/Instagram/src/instagram/MensajeSticker.java</file>
-            <file>file:/C:/ProyectosJava/Instagram/src/instagram/Mensaje.java</file>
             <file>file:/C:/ProyectosJava/Instagram/src/instagram/Main.java</file>
             <file>file:/C:/ProyectosJava/Instagram/src/instagram/ListaUsuarios.java</file>
-            <file>file:/C:/ProyectosJava/Instagram/src/instagram/GestorFiles.java</file>
-            <file>file:/C:/ProyectosJava/Instagram/src/interfaces/Interaccion.java</file>
-            <file>file:/C:/ProyectosJava/Instagram/src/interfaces/Mensajeria.java</file>
-            <file>file:/C:/ProyectosJava/Instagram/src/red/HiloCliente.java</file>
-            <file>file:/C:/ProyectosJava/Instagram/src/red/Servidor.java</file>
             <file>file:/C:/ProyectosJava/Instagram/src/gui/VentanaPrincipal.java</file>
         </group>
     </open-files>
