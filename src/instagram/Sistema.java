@@ -1115,4 +1115,11 @@ public class Sistema {
         }
         return notifs;
     }
+    
+    public boolean solicitudPendiente(String usernameObjetivo) {
+    if (usuarioActual == null) return false;
+    String rutaSolicitudes = RUTA_RAIZ + "/" + usernameObjetivo + "/solicitudes.ins";
+    return verificarEnArchivo(rutaSolicitudes, usuarioActual.getUsername());
+}
+    
 }

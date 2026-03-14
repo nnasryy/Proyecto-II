@@ -314,229 +314,260 @@ public class VentanaPrincipal extends JFrame {
     // ---------------------------------------------------------
     // VISTA 2: REGISTRO
     // ---------------------------------------------------------
-    private void cargarVistaRegistro() {
-        getContentPane().removeAll();
-        getContentPane().setLayout(null);
-        getContentPane().setBackground(COLOR_FONDO);
+private void cargarVistaRegistro() {
+    getContentPane().removeAll();
+    getContentPane().setLayout(null);
+    getContentPane().setBackground(COLOR_FONDO);
 
-        JLabel lblTitulo = new JLabel("Crear Cuenta");
-        lblTitulo.setFont(new Font("Arial", Font.BOLD, 24));
-        lblTitulo.setHorizontalAlignment(SwingConstants.CENTER);
+    JLabel lblTitulo = new JLabel("Crear Cuenta");
+    lblTitulo.setFont(new Font("Arial", Font.BOLD, 24));
+    lblTitulo.setHorizontalAlignment(SwingConstants.CENTER);
 
-        JLabel lblErrorNombre = crearLabelError();
-        JTextField txtNombre = crearTextField("Nombre Completo");
+    // --- NUEVO: SELECTOR DE FOTO ---
+    JLabel lblFotoPreview = new JLabel();
+    lblFotoPreview.setHorizontalAlignment(SwingConstants.CENTER);
+    lblFotoPreview.setOpaque(true);
+    lblFotoPreview.setBackground(new Color(230, 230, 230));
+    lblFotoPreview.setBorder(new LineBorder(new Color(200, 200, 200), 2, true));
+    lblFotoPreview.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    lblFotoPreview.setToolTipText("Haz clic para subir foto");
+    
+    // Variable temporal para guardar el archivo seleccionado
+    final File[] archivoSeleccionado = {null};
 
-        JLabel lblErrorUser = crearLabelError();
-        JPanel panelUser = crearPanelConIconoDerecho("Username");
-
-        JLabel lblErrorPass = crearLabelError();
-        JPanel panelPass = crearPanelPassword();
-
-        JLabel lblErrorEdad = crearLabelError();
-        JSpinner spnEdad = crearSpinnerPersonalizado(18);
-
-        JComboBox<String> cmbGenero = new JComboBox<>();
-        cmbGenero.addItem("Masculino");
-        cmbGenero.addItem("Femenino");
-        estilizarComboBox(cmbGenero);
-
-        JComboBox<String> cmbTipo = new JComboBox<>();
-        cmbTipo.addItem("Pública");
-        cmbTipo.addItem("Privada");
-        estilizarComboBox(cmbTipo);
-
-        JButton btnRegistrar = new JButton("Registrarse");
-        btnRegistrar.setFont(new Font("Arial", Font.BOLD, 14));
-        btnRegistrar.setOpaque(true);
-        btnRegistrar.setBorderPainted(false);
-        btnRegistrar.setFocusPainted(false);
-        btnRegistrar.setBackground(COLOR_DISABLED);
-        btnRegistrar.setForeground(COLOR_TEXT_DISABLED);
-        btnRegistrar.setEnabled(false);
-
-        JLabel btnVolver = new JLabel("¿Ya tienes cuenta? Volver");
-        btnVolver.setForeground(COLOR_BOTTON);
-        btnVolver.setFont(new Font("Arial", Font.BOLD, 12));
-        btnVolver.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btnVolver.setSize(btnVolver.getPreferredSize());
-
-        int anchoInputs = 320;
-        int altoInput = 36;
-        int xInputs = (1366 - anchoInputs) / 2;
-        int y = 120;
-
-        lblTitulo.setBounds(xInputs, y, anchoInputs, 40);
-        y += 50;
-        txtNombre.setBounds(xInputs, y, anchoInputs, altoInput);
-        lblErrorNombre.setBounds(xInputs, y + altoInput + 2, anchoInputs, 20);
-        y += 60;
-        panelUser.setBounds(xInputs, y, anchoInputs, altoInput);
-        lblErrorUser.setBounds(xInputs, y + altoInput + 2, anchoInputs, 20);
-        y += 60;
-        panelPass.setBounds(xInputs, y, anchoInputs, altoInput);
-        lblErrorPass.setBounds(xInputs, y + altoInput + 2, anchoInputs, 20);
-        y += 60;
-
-        JLabel lblEdad = new JLabel("Edad:");
-        lblEdad.setFont(new Font("Arial", Font.BOLD, 12));
-        lblEdad.setBounds(xInputs, y, 100, 20);
-        spnEdad.setBounds(xInputs, y + 20, 80, 30);
-        lblErrorEdad.setBounds(xInputs, y + 52, 150, 15);
-
-        JLabel lblGenero = new JLabel("Género:");
-        lblGenero.setFont(new Font("Arial", Font.BOLD, 12));
-        lblGenero.setBounds(xInputs + 160, y, 100, 20);
-        cmbGenero.setBounds(xInputs + 160, y + 20, 140, 30);
-        y += 75;
-
-        JLabel lblTipo = new JLabel("Tipo Cuenta:");
-        lblTipo.setFont(new Font("Arial", Font.BOLD, 12));
-        lblTipo.setBounds(xInputs, y, 100, 20);
-        cmbTipo.setBounds(xInputs, y + 20, anchoInputs, 30);
-        y += 60;
-
-        btnRegistrar.setBounds(xInputs, y, anchoInputs, altoInput);
-        y += 50;
-        int anchoTextoVolver = btnVolver.getPreferredSize().width;
-        btnVolver.setLocation(xInputs + (anchoInputs - anchoTextoVolver) / 2, y);
-
-        add(lblTitulo);
-        add(txtNombre);
-        add(lblErrorNombre);
-        add(panelUser);
-        add(lblErrorUser);
-        add(panelPass);
-        add(lblErrorPass);
-        add(spnEdad);
-        add(cmbGenero);
-        add(lblEdad);
-        add(lblGenero);
-        add(lblErrorEdad);
-        add(cmbTipo);
-        add(lblTipo);
-        add(btnRegistrar);
-        add(btnVolver);
-
-        JTextField txtUser = (JTextField) panelUser.getComponent(0);
-        JPasswordField txtPass = (JPasswordField) panelPass.getComponent(0);
-        JLabel lblIconoCheck = (JLabel) panelUser.getComponent(1);
-
-        DocumentListener valListener = new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                validarTodo();
+    // Acción para seleccionar imagen
+    lblFotoPreview.addMouseListener(new MouseAdapter() {
+        @Override
+        public void mouseClicked(MouseEvent e) {
+            JFileChooser fc = new JFileChooser();
+            fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Imágenes", "jpg", "png", "jpeg"));
+            int res = fc.showOpenDialog(null);
+            if (res == JFileChooser.APPROVE_OPTION) {
+                archivoSeleccionado[0] = fc.getSelectedFile();
+                // Mostrar preview
+                ImageIcon icon = new ImageIcon(archivoSeleccionado[0].getAbsolutePath());
+                Image img = icon.getImage().getScaledInstance(100, 100, Image.SCALE_SMOOTH);
+                lblFotoPreview.setIcon(new ImageIcon(img));
+                lblFotoPreview.setText("");
             }
+        }
+    });
+    
+    JLabel lblErrorNombre = crearLabelError();
+    JTextField txtNombre = crearTextField("Nombre Completo");
 
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                validarTodo();
-            }
+    JLabel lblErrorUser = crearLabelError();
+    JPanel panelUser = crearPanelConIconoDerecho("Username");
 
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                validarTodo();
-            }
+    JLabel lblErrorPass = crearLabelError();
+    JPanel panelPass = crearPanelPassword();
 
-            private void validarTodo() {
-                boolean todoOK = true;
-                String nombre = txtNombre.getText();
-                if (nombre.equals("Nombre Completo") || nombre.isEmpty()) {
-                    todoOK = false;
-                }
+    JLabel lblErrorEdad = crearLabelError();
+    JSpinner spnEdad = crearSpinnerPersonalizado(18);
 
-                String user = txtUser.getText();
-                lblErrorUser.setText("");
-                resetBorder(panelUser);
-                lblIconoCheck.setIcon(null);
-                if (user.isEmpty() || user.equals("Username")) {
-                    todoOK = false;
-                } else if (user.length() < 3) {
-                    lblErrorUser.setText("Debe superar los 3 caracteres.");
-                    ponerBordeRojo(panelUser);
-                    todoOK = false;
-                } else if (sistema.existeUsername(user)) {
-                    lblErrorUser.setText("El username ya existe.");
-                    ponerBordeRojo(panelUser);
-                    todoOK = false;
-                } else {
-                    if (iconCheck != null) {
-                        lblIconoCheck.setIcon(iconCheck);
-                    } else {
-                        lblIconoCheck.setText("✓");
-                    }
-                }
+    JComboBox<String> cmbGenero = new JComboBox<>();
+    cmbGenero.addItem("Masculino");
+    cmbGenero.addItem("Femenino");
+    estilizarComboBox(cmbGenero);
 
-                String pass = String.valueOf(txtPass.getPassword());
-                lblErrorPass.setText("");
-                resetBorder(panelPass);
-                if (pass.isEmpty() || pass.equals("Password")) {
-                    todoOK = false;
-                } else if (pass.length() < 6) {
-                    lblErrorPass.setText("Ingresa al menos 6 caracteres.");
-                    ponerBordeRojo(panelPass);
-                    todoOK = false;
-                }
+    JComboBox<String> cmbTipo = new JComboBox<>();
+    cmbTipo.addItem("Pública");
+    cmbTipo.addItem("Privada");
+    estilizarComboBox(cmbTipo);
 
-                int edad = (int) spnEdad.getValue();
-                lblErrorEdad.setText("");
-                resetBorder(spnEdad);
-                if (edad < 18) {
-                    lblErrorEdad.setText("Debes ser mayor de 18 años.");
-                    ponerBordeRojo(spnEdad);
-                    todoOK = false;
-                }
+    JButton btnRegistrar = new JButton("Registrarse");
+    btnRegistrar.setFont(new Font("Arial", Font.BOLD, 14));
+    btnRegistrar.setOpaque(true);
+    btnRegistrar.setBorderPainted(false);
+    btnRegistrar.setFocusPainted(false);
+    btnRegistrar.setBackground(COLOR_DISABLED);
+    btnRegistrar.setForeground(COLOR_TEXT_DISABLED);
+    btnRegistrar.setEnabled(false);
 
-                if (todoOK) {
-                    btnRegistrar.setEnabled(true);
-                    btnRegistrar.setBackground(COLOR_BOTTON);
-                    btnRegistrar.setForeground(Color.WHITE);
-                } else {
-                    btnRegistrar.setEnabled(false);
-                    btnRegistrar.setBackground(COLOR_DISABLED);
-                    btnRegistrar.setForeground(COLOR_TEXT_DISABLED);
-                }
-            }
-        };
+    JLabel btnVolver = new JLabel("¿Ya tienes cuenta? Volver");
+    btnVolver.setForeground(COLOR_BOTTON);
+    btnVolver.setFont(new Font("Arial", Font.BOLD, 12));
+    btnVolver.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    btnVolver.setSize(btnVolver.getPreferredSize());
 
-        txtNombre.getDocument().addDocumentListener(valListener);
-        txtUser.getDocument().addDocumentListener(valListener);
-        txtPass.getDocument().addDocumentListener(valListener);
-        spnEdad.addChangeListener(e -> valListener.changedUpdate(null));
+    int anchoInputs = 320;
+    int altoInput = 36;
+    int xInputs = (1366 - anchoInputs) / 2;
+    int y = 80;
 
-        btnVolver.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                inicializarComponentesLogin();
-            }
-        });
+    lblTitulo.setBounds(xInputs, y, anchoInputs, 40);
+    y += 50;
+    
+    // Posicionar preview de foto
+    int anchoFoto = 100;
+    lblFotoPreview.setBounds(xInputs + (anchoInputs - anchoFoto) / 2, y, anchoFoto, anchoFoto);
+    lblFotoPreview.setText("📷"); // Texto inicial
+    lblFotoPreview.setFont(new Font("Arial", Font.PLAIN, 30));
+    y += 120; // Espacio debajo de la foto
 
-        btnRegistrar.addActionListener(e -> {
+    txtNombre.setBounds(xInputs, y, anchoInputs, altoInput);
+    lblErrorNombre.setBounds(xInputs, y + altoInput + 2, anchoInputs, 20);
+    y += 60;
+    panelUser.setBounds(xInputs, y, anchoInputs, altoInput);
+    lblErrorUser.setBounds(xInputs, y + altoInput + 2, anchoInputs, 20);
+    y += 60;
+    panelPass.setBounds(xInputs, y, anchoInputs, altoInput);
+    lblErrorPass.setBounds(xInputs, y + altoInput + 2, anchoInputs, 20);
+    y += 60;
+
+    JLabel lblEdad = new JLabel("Edad:");
+    lblEdad.setFont(new Font("Arial", Font.BOLD, 12));
+    lblEdad.setBounds(xInputs, y, 100, 20);
+    spnEdad.setBounds(xInputs, y + 20, 80, 30);
+    lblErrorEdad.setBounds(xInputs, y + 52, 150, 15);
+
+    JLabel lblGenero = new JLabel("Género:");
+    lblGenero.setFont(new Font("Arial", Font.BOLD, 12));
+    lblGenero.setBounds(xInputs + 160, y, 100, 20);
+    cmbGenero.setBounds(xInputs + 160, y + 20, 140, 30);
+    y += 75;
+
+    JLabel lblTipo = new JLabel("Tipo Cuenta:");
+    lblTipo.setFont(new Font("Arial", Font.BOLD, 12));
+    lblTipo.setBounds(xInputs, y, 100, 20);
+    cmbTipo.setBounds(xInputs, y + 20, anchoInputs, 30);
+    y += 60;
+
+    btnRegistrar.setBounds(xInputs, y, anchoInputs, altoInput);
+    y += 50;
+    int anchoTextoVolver = btnVolver.getPreferredSize().width;
+    btnVolver.setLocation(xInputs + (anchoInputs - anchoTextoVolver) / 2, y);
+
+    add(lblTitulo);
+    add(lblFotoPreview); // Añadir preview
+    add(txtNombre);
+    add(lblErrorNombre);
+    add(panelUser);
+    add(lblErrorUser);
+    add(panelPass);
+    add(lblErrorPass);
+    add(spnEdad);
+    add(cmbGenero);
+    add(lblEdad);
+    add(lblGenero);
+    add(lblErrorEdad);
+    add(cmbTipo);
+    add(lblTipo);
+    add(btnRegistrar);
+    add(btnVolver);
+
+    JTextField txtUser = (JTextField) panelUser.getComponent(0);
+    JPasswordField txtPass = (JPasswordField) panelPass.getComponent(0);
+    JLabel lblIconoCheck = (JLabel) panelUser.getComponent(1);
+
+    DocumentListener valListener = new DocumentListener() {
+        @Override
+        public void insertUpdate(DocumentEvent e) { validarTodo(); }
+        @Override
+        public void removeUpdate(DocumentEvent e) { validarTodo(); }
+        @Override
+        public void changedUpdate(DocumentEvent e) { validarTodo(); }
+
+        private void validarTodo() {
+            boolean todoOK = true;
             String nombre = txtNombre.getText();
+            if (nombre.equals("Nombre Completo") || nombre.isEmpty()) todoOK = false;
+
             String user = txtUser.getText();
-            String pass = String.valueOf(txtPass.getPassword());
-            int edad = (int) spnEdad.getValue();
-            char genero = cmbGenero.getSelectedItem().toString().charAt(0);
-            TipoCuenta tipo = (cmbTipo.getSelectedIndex() == 0) ? TipoCuenta.PUBLICA : TipoCuenta.PRIVADA;
-            String foto = "default_profile.png";
-
-            boolean exito = sistema.registrarUsuario(user, pass, nombre, genero, edad, foto, tipo);
-            if (exito) {
-                lblTitulo.setText("¡Cuenta Creada!");
-                lblTitulo.setForeground(new Color(0, 150, 0));
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException ignored) {
-                }
-                inicializarComponentesLogin();
+            lblErrorUser.setText("");
+            resetBorder(panelUser);
+            lblIconoCheck.setIcon(null);
+            if (user.isEmpty() || user.equals("Username")) {
+                todoOK = false;
+            } else if (user.length() < 3) {
+                lblErrorUser.setText("Debe superar los 3 caracteres.");
+                ponerBordeRojo(panelUser);
+                todoOK = false;
+            } else if (sistema.existeUsername(user)) {
+                lblErrorUser.setText("El username ya existe.");
+                ponerBordeRojo(panelUser);
+                todoOK = false;
             } else {
-                lblErrorUser.setText("Error inesperado al registrar.");
+                if (iconCheck != null) lblIconoCheck.setIcon(iconCheck);
+                else lblIconoCheck.setText("✓");
             }
-        });
 
-        revalidate();
-        repaint();
-    }
+            String pass = String.valueOf(txtPass.getPassword());
+            lblErrorPass.setText("");
+            resetBorder(panelPass);
+            if (pass.isEmpty() || pass.equals("Password")) {
+                todoOK = false;
+            } else if (pass.length() < 6) {
+                lblErrorPass.setText("Ingresa al menos 6 caracteres.");
+                ponerBordeRojo(panelPass);
+                todoOK = false;
+            }
 
+            int edad = (int) spnEdad.getValue();
+            lblErrorEdad.setText("");
+            resetBorder(spnEdad);
+            if (edad < 18) {
+                lblErrorEdad.setText("Debes ser mayor de 18 años.");
+                ponerBordeRojo(spnEdad);
+                todoOK = false;
+            }
+
+            if (todoOK) {
+                btnRegistrar.setEnabled(true);
+                btnRegistrar.setBackground(COLOR_BOTTON);
+                btnRegistrar.setForeground(Color.WHITE);
+            } else {
+                btnRegistrar.setEnabled(false);
+                btnRegistrar.setBackground(COLOR_DISABLED);
+                btnRegistrar.setForeground(COLOR_TEXT_DISABLED);
+            }
+        }
+    };
+
+    txtNombre.getDocument().addDocumentListener(valListener);
+    txtUser.getDocument().addDocumentListener(valListener);
+    txtPass.getDocument().addDocumentListener(valListener);
+    spnEdad.addChangeListener(e -> valListener.changedUpdate(null));
+
+    btnVolver.addMouseListener(new MouseAdapter() {
+        @Override
+        public void mouseClicked(MouseEvent e) { inicializarComponentesLogin(); }
+    });
+
+    btnRegistrar.addActionListener(e -> {
+        String nombre = txtNombre.getText();
+        String user = txtUser.getText();
+        String pass = String.valueOf(txtPass.getPassword());
+        int edad = (int) spnEdad.getValue();
+        char genero = cmbGenero.getSelectedItem().toString().charAt(0);
+        TipoCuenta tipo = (cmbTipo.getSelectedIndex() == 0) ? TipoCuenta.PUBLICA : TipoCuenta.PRIVADA;
+        
+        String rutaFoto;
+        
+        // --- LÓGICA DE FOTO ---
+        if (archivoSeleccionado[0] != null) {
+            // Si el usuario seleccionó foto, la guardamos en su carpeta
+            String nombreImg = "profile_" + System.currentTimeMillis();
+            rutaFoto = sistema.procesarYGuardarImagen(archivoSeleccionado[0], user, nombreImg);
+        } else {
+            // Si no seleccionó foto, dejamos vacío (el sistema generará avatar automático)
+            rutaFoto = ""; 
+        }
+
+        boolean exito = sistema.registrarUsuario(user, pass, nombre, genero, edad, rutaFoto, tipo);
+        if (exito) {
+            lblTitulo.setText("¡Cuenta Creada!");
+            lblTitulo.setForeground(new Color(0, 150, 0));
+            try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
+            inicializarComponentesLogin();
+        } else {
+            lblErrorUser.setText("Error inesperado al registrar.");
+        }
+    });
+
+    revalidate();
+    repaint();
+}
     // ---------------------------------------------------------
     // MÉTODOS AUXILIARES UI
     // ---------------------------------------------------------
@@ -1197,40 +1228,50 @@ public class VentanaPrincipal extends JFrame {
     fila1.add(lblUsername);
 
     // Lógica de botones según si es mi perfil o ajeno
-    if (!usernameVisitar.equals(sistema.getUsuarioActual().getUsername())) {
-        // --- PERFIL AJENO: LÓGICA SEGUIR / DEJAR DE SEGUIR ---
-        JButton btnSeguir = new JButton();
-        btnSeguir.setFont(new Font("Arial", Font.BOLD, 12));
-        btnSeguir.setBorderPainted(false);
-        btnSeguir.setOpaque(true);
-        btnSeguir.setCursor(new Cursor(Cursor.HAND_CURSOR));
+  // REEMPLAZA EL BLOQUE DEL BOTÓN SEGUIR EN cargarVistaPerfil
+if (!usernameVisitar.equals(sistema.getUsuarioActual().getUsername())) {
+    // --- PERFIL AJENO ---
+    JButton btnSeguir = new JButton();
+    btnSeguir.setFont(new Font("Arial", Font.BOLD, 12));
+    btnSeguir.setBorderPainted(false);
+    btnSeguir.setOpaque(true);
+    btnSeguir.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
-        // Verificamos estado actual para poner texto y color
-        if (sistema.yaLoSigo(usernameVisitar)) {
-            btnSeguir.setText("Dejar de seguir");
-            btnSeguir.setBackground(new Color(240, 240, 240)); // Gris
-            btnSeguir.setForeground(Color.BLACK);
-        } else {
-            btnSeguir.setText("Seguir");
-            btnSeguir.setBackground(COLOR_BOTTON); // Azul
-            btnSeguir.setForeground(Color.WHITE);
-        }
-
-        // Acción inteligente del botón
-        btnSeguir.addActionListener(e -> {
-            if (sistema.yaLoSigo(usernameVisitar)) {
-                sistema.dejarDeSeguir(usernameVisitar);
-            } else {
-                sistema.seguirUsuario(usernameVisitar);
-            }
-            // Recargamos la vista para reflejar el cambio visual y contadores
-            cargarVistaPerfil(usernameVisitar);
-        });
-        
-        fila1.add(Box.createHorizontalStrut(20));
-        fila1.add(btnSeguir);
-        
+    // 1. Verificar estados
+    boolean loSigo = sistema.yaLoSigo(usernameVisitar);
+    boolean pendiente = sistema.solicitudPendiente(usernameVisitar);
+    Usuario objetivo = sistema.buscarUsuario(usernameVisitar);
+    
+    // 2. Configurar texto y color según estado
+    if (loSigo) {
+        btnSeguir.setText("Dejar de seguir");
+        btnSeguir.setBackground(new Color(240, 240, 240));
+        btnSeguir.setForeground(Color.BLACK);
+    } else if (pendiente) {
+        btnSeguir.setText("Solicitud enviada");
+        btnSeguir.setBackground(new Color(240, 240, 240));
+        btnSeguir.setForeground(Color.GRAY);
+        btnSeguir.setEnabled(false); // Opcional: desactivar el botón
     } else {
+        btnSeguir.setText("Seguir");
+        btnSeguir.setBackground(COLOR_BOTTON);
+        btnSeguir.setForeground(Color.WHITE);
+    }
+
+    // 3. Acción del botón
+    btnSeguir.addActionListener(e -> {
+        if (loSigo) {
+            sistema.dejarDeSeguir(usernameVisitar);
+        } else if (!pendiente) {
+            sistema.seguirUsuario(usernameVisitar);
+        }
+        // Recargar siempre para actualizar el estado
+        cargarVistaPerfil(usernameVisitar);
+    });
+
+    fila1.add(Box.createHorizontalStrut(20));
+    fila1.add(btnSeguir);
+} else {
         // --- MI PERFIL: EDITAR Y DESACTIVAR ---
         JButton btnEditar = new JButton("Editar Perfil");
         btnEditar.setFont(new Font("Arial", Font.BOLD, 12));
@@ -1403,30 +1444,32 @@ public class VentanaPrincipal extends JFrame {
     // ---------------------------------------------------------
     // CARGA DE FOTO PERFIL
     // ---------------------------------------------------------
-    private ImageIcon cargarFotoPerfil(String username, int diametro) {
-        Usuario u = sistema.buscarUsuario(username);
-        String ruta = (u != null && u.getFotoPerfil() != null && !u.getFotoPerfil().isEmpty()) ? u.getFotoPerfil() : "default_profile.png";
-        ImageIcon icon = null;
-        try {
-            if (!ruta.equals("default_profile.png") && !ruta.equals("null")) {
-                File f = new File(ruta);
-                if (f.exists()) {
-                    icon = new ImageIcon(ruta);
-                }
-            }
-            if (icon == null) {
-                URL url = getClass().getResource("/images/default_profile.png");
-                if (url != null) {
-                    icon = new ImageIcon(url);
-                } else {
-                    return crearAvatarDefault(username, diametro);
-                }
-            }
+private ImageIcon cargarFotoPerfil(String username, int diametro) {
+    Usuario u = sistema.buscarUsuario(username);
+    
+    // Si el usuario no existe, retornamos null (manejado en el llamador)
+    if (u == null) return crearAvatarDefault(username, diametro);
+    
+    String ruta = u.getFotoPerfil();
+    
+    // Si la ruta está vacía, es null o es el string literal "default_profile.png", generamos avatar
+    if (ruta == null || ruta.isEmpty() || ruta.equals("default_profile.png") || ruta.equals("null")) {
+        return crearAvatarDefault(username, diametro);
+    }
+
+    try {
+        File f = new File(ruta);
+        if (f.exists()) {
+            ImageIcon icon = new ImageIcon(ruta);
             return crearIconoCircular(icon, diametro);
-        } catch (Exception e) {
+        } else {
+            // Si el archivo no existe (borrado manual), generamos avatar
             return crearAvatarDefault(username, diametro);
         }
+    } catch (Exception e) {
+        return crearAvatarDefault(username, diametro);
     }
+}
 
     private ImageIcon crearAvatarDefault(String username, int diametro) {
         BufferedImage img = new BufferedImage(diametro, diametro, BufferedImage.TYPE_INT_ARGB);
