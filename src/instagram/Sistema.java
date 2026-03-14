@@ -426,6 +426,48 @@ public class Sistema {
         lista.sort(Comparator.comparing(Publicacion::getFecha).thenComparing(Publicacion::getHora).reversed());
         return lista;
     }
+    // Método específico para fotos de perfil: RECORTA al centro (Square Crop)
+
+  public String procesarImagenPerfil(File original, String username, String nombreArchivo) {
+    try {
+        BufferedImage imgOriginal = javax.imageio.ImageIO.read(original);
+        if (imgOriginal == null) {
+            System.out.println("Error: El archivo seleccionado no es una imagen válida.");
+            return null;
+        }
+
+        int ancho = imgOriginal.getWidth();
+        int alto = imgOriginal.getHeight();
+        int size = 300;
+
+        int x = 0, y = 0;
+        int ladoCuadrado = Math.min(ancho, alto);
+        if (ancho > alto) x = (ancho - alto) / 2;
+        else y = (alto - ancho) / 2;
+
+        BufferedImage imgRecortada = imgOriginal.getSubimage(x, y, ladoCuadrado, ladoCuadrado);
+        BufferedImage imgFinal = new BufferedImage(size, size, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g2d = imgFinal.createGraphics();
+        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g2d.drawImage(imgRecortada, 0, 0, size, size, null);
+        g2d.dispose();
+
+        // Asegurar que la carpeta exista
+        File carpeta = new File(RUTA_RAIZ + "/" + username + "/imagenes");
+        if (!carpeta.exists()) carpeta.mkdirs();
+
+        // IMPORTANTE: Usar getAbsolutePath() para guardar la ruta completa
+        File archivoDestino = new File(carpeta, nombreArchivo + ".jpg");
+        javax.imageio.ImageIO.write(imgFinal, "jpg", archivoDestino);
+        
+        System.out.println("Foto guardada en: " + archivoDestino.getAbsolutePath());
+        return archivoDestino.getAbsolutePath(); // <--- CLAVE: Devolver ruta absoluta
+
+    } catch (Exception e) {
+        e.printStackTrace();
+        return null;
+    }
+}
 
     // ---------------------------
     // CONTAR LÍNEAS EN UN ARCHIVO
@@ -535,41 +577,104 @@ public class Sistema {
         return yoLoSigo && elMeSigue;
     }
 
-        public boolean enviarMensaje(String receptorUsername, String contenido, String tipo) {
-        if (usuarioActual == null || contenido.length() > 300) return false;
-        
+    // En Sistema.java
+    public boolean enviarMensaje(String receptorUsername, String contenido, String tipo) {
+        if (usuarioActual == null || contenido.length() > 300) {
+            return false;
+        }
+
+        // 1. Capturamos fecha y hora UNA SOLA VEZ para asegurar que sean idénticos
+        LocalDate fecha = LocalDate.now();
+        LocalTime hora = LocalTime.now();
+
         Mensaje nuevo;
+        Mensaje copiaMia;
+
         if ("STICKER".equals(tipo)) {
             nuevo = new MensajeSticker(usuarioActual.getUsername(), receptorUsername, contenido);
-        } else {
-            nuevo = new MensajeTexto(usuarioActual.getUsername(), receptorUsername, contenido);
-        }
-
-        // 1. Guardar en inbox del RECEPTOR (NO_LEIDO)
-        nuevo.setEstado("NO_LEIDO");
-        guardarMensaje(nuevo);
-
-        // 2. Guardar copia en mi inbox (YO lo envío, así que para mí está "Enviado/Leído")
-        // Es importante guardar una copia para ver mi propio mensaje en el chat
-        Mensaje copiaMia;
-        if ("STICKER".equals(tipo)) {
             copiaMia = new MensajeSticker(usuarioActual.getUsername(), receptorUsername, contenido);
         } else {
+            nuevo = new MensajeTexto(usuarioActual.getUsername(), receptorUsername, contenido);
             copiaMia = new MensajeTexto(usuarioActual.getUsername(), receptorUsername, contenido);
         }
-        copiaMia.setEstado("LEIDO"); // Para el emisor, siempre se ve como enviado
-        
+
+        // 2. Forzamos la fecha y hora sincronizadas en ambos objetos
+        // Nota: Como los campos son protected y estamos en el mismo paquete, podemos acceder directo.
+        // Si da error, usa setters si existen.
+        nuevo.fecha = fecha;
+        nuevo.hora = hora;
+        nuevo.setEstado("NO_LEIDO");
+
+        copiaMia.fecha = fecha;
+        copiaMia.hora = hora;
+        // Mi propia copia empieza como "NO_LEIDO" (Enviado).
+        // El método marcarComoLeido se encargará de cambiar esto a "LEIDO" cuando el OTRO lo lea.
+        copiaMia.setEstado("NO_LEIDO");
+
+        // 3. Guardar en inbox del RECEPTOR
+        guardarMensaje(nuevo);
+
+        // 4. Guardar copia en mi inbox
         String rutaInboxMio = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins";
         try (FileWriter fw = new FileWriter(rutaInboxMio, true)) {
             fw.write(copiaMia.toFileString() + "\n");
-        } catch (IOException e) { e.printStackTrace(); }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
         return true;
     }
+// Método auxiliar para actualizar el archivo del OTRO (el que envió el mensaje)
+private void actualizarEstadoEnArchivoAjeno(String otroUsuario, String miUsername, LocalDate fecha, LocalTime hora) {
+    String rutaOtro = RUTA_RAIZ + "/" + otroUsuario + "/inbox.ins";
+    File archivoOtro = new File(rutaOtro);
+    if (!archivoOtro.exists()) return;
 
-       public ArrayList<Mensaje> getConversacion(String otroUsuario) {
+    ArrayList<String> lineasOtro = new ArrayList<>();
+    boolean cambio = false;
+
+    try (Scanner sc = new Scanner(archivoOtro)) {
+        while (sc.hasNextLine()) {
+            String linea = sc.nextLine();
+            Mensaje m = Mensaje.fromFileString(linea);
+            
+            // LÓGICA CORREGIDA:
+            // Estamos en el archivo del EMISOR (otroUsuario).
+            // Buscamos el mensaje que ÉL envió (Emisor == otroUsuario) 
+            // y que YO recibí (Receptor == miUsername).
+            if (m != null 
+                && m.getEmisor().equals(otroUsuario) 
+                && m.getReceptor().equals(miUsername) 
+                && m.getFecha().equals(fecha) 
+                && m.getHora().equals(hora)) {
+                
+                m.setEstado("LEIDO");
+                lineasOtro.add(m.toFileString());
+                cambio = true;
+            } else {
+                lineasOtro.add(linea);
+            }
+        }
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+
+    // Solo reescribir si hubo cambios
+    if (cambio) {
+        try (FileWriter fw = new FileWriter(rutaOtro)) {
+            for (String l : lineasOtro) {
+                fw.write(l + "\n");
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+    public ArrayList<Mensaje> getConversacion(String otroUsuario) {
         ArrayList<Mensaje> conversacion = new ArrayList<>();
-        if (usuarioActual == null) return conversacion;
+        if (usuarioActual == null) {
+            return conversacion;
+        }
 
         String rutaInbox = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins";
         File archivo = new File(rutaInbox);
@@ -592,12 +697,14 @@ public class Sistema {
         } catch (Exception e) {
             e.printStackTrace();
         }
-      
+
         return conversacion;
     }
 
-        public void marcarComoLeido(String otroUsuario) {
-        if (usuarioActual == null) return;
+    public void marcarComoLeido(String otroUsuario) {
+        if (usuarioActual == null) {
+            return;
+        }
 
         // 1. Marcar en MI inbox (para que yo no los procese de nuevo)
         String rutaInboxMio = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins";
@@ -612,7 +719,7 @@ public class Sistema {
                     if (m != null && m.getEmisor().equals(otroUsuario) && m.getEstado().equals("NO_LEIDO")) {
                         m.setEstado("LEIDO");
                         lineasMias.add(m.toFileString());
-                        
+
                         // 2. ¡TRUCO LOCAL! También actualizo el archivo del OTRO
                         // Para que cuando ÉL abra el chat, vea "Leído ✓✓"
                         actualizarEstadoEnArchivoAjeno(otroUsuario, usuarioActual.getUsername(), m.getFecha(), m.getHora());
@@ -620,38 +727,18 @@ public class Sistema {
                         lineasMias.add(linea);
                     }
                 }
-            } catch (Exception e) { e.printStackTrace(); }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
 
             try (FileWriter fw = new FileWriter(rutaInboxMio)) {
-                for (String l : lineasMias) fw.write(l + "\n");
-            } catch (IOException e) { e.printStackTrace(); }
-        }
-    }
-    
-    // Método auxiliar nuevo para actualizar el archivo del otro usuario
-    private void actualizarEstadoEnArchivoAjeno(String otroUsuario, String miUsername, LocalDate fecha, LocalTime hora) {
-        String rutaOtro = RUTA_RAIZ + "/" + otroUsuario + "/inbox.ins";
-        File archivoOtro = new File(rutaOtro);
-        if (!archivoOtro.exists()) return;
-        
-        ArrayList<String> lineasOtro = new ArrayList<>();
-        try (Scanner sc = new Scanner(archivoOtro)) {
-            while (sc.hasNextLine()) {
-                String linea = sc.nextLine();
-                Mensaje m = Mensaje.fromFileString(linea);
-                // Busco el mensaje que YO envié y que coincide fecha/hora
-                if (m != null && m.getEmisor().equals(miUsername) && m.getFecha().equals(fecha) && m.getHora().equals(hora)) {
-                    m.setEstado("LEIDO");
-                    lineasOtro.add(m.toFileString());
-                } else {
-                    lineasOtro.add(linea);
+                for (String l : lineasMias) {
+                    fw.write(l + "\n");
                 }
+            } catch (IOException e) {
+                e.printStackTrace();
             }
-        } catch (Exception e) {}
-        
-        try (FileWriter fw = new FileWriter(rutaOtro)) {
-            for (String l : lineasOtro) fw.write(l + "\n");
-        } catch (IOException e) {}
+        }
     }
 
     public ArrayList<String> getChatsRecientes() {
@@ -717,18 +804,23 @@ public class Sistema {
         String msgData = "SHARE|" + autorPost + "|" + rutaImagen + "|" + contenido;
         enviarMensaje(usernameDestino, msgData, "TEXTO"); // Lo enviamos como texto pero con tag SHARE
     }
-        public boolean puedeCompartirPost(String usernameDestino, String autorPost) {
+
+    public boolean puedeCompartirPost(String usernameDestino, String autorPost) {
         Usuario autor = buscarUsuario(autorPost);
         Usuario destino = buscarUsuario(usernameDestino);
-        if (autor == null || destino == null) return false;
+        if (autor == null || destino == null) {
+            return false;
+        }
 
         // Si el autor es público, cualquiera puede compartir
-        if (autor.getTipoCuenta() == TipoCuenta.PUBLICA) return true;
+        if (autor.getTipoCuenta() == TipoCuenta.PUBLICA) {
+            return true;
+        }
 
         // Si es privado, deben ser mutuals (seguirse mutuamente)
         boolean destinoSigueAutor = verificarEnArchivo(RUTA_RAIZ + "/" + usernameDestino + "/following.ins", autorPost);
         boolean autorSigueDestino = verificarEnArchivo(RUTA_RAIZ + "/" + autorPost + "/following.ins", usernameDestino);
-        
+
         return destinoSigueAutor && autorSigueDestino;
     }
     // ---------------------------------------------------------
@@ -1050,7 +1142,7 @@ public class Sistema {
         }
         return lista;
     }
-    
+
     // ---------------------------------------------------------
     // MÉTODOS AUXILIARES ARCHIVOS
     // ---------------------------------------------------------

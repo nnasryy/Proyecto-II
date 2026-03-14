@@ -548,34 +548,33 @@ public class VentanaPrincipal extends JFrame {
             }
         });
 
-        btnRegistrar.addActionListener(e -> {
-            String nombre = txtNombre.getText();
-            String user = txtUser.getText();
-            String pass = String.valueOf(txtPass.getPassword());
-            int edad = (int) spnEdad.getValue();
-            char genero = cmbGenero.getSelectedItem().toString().charAt(0);
-            TipoCuenta tipo = (cmbTipo.getSelectedIndex() == 0) ? TipoCuenta.PUBLICA : TipoCuenta.PRIVADA;
+       btnRegistrar.addActionListener(e -> {
+    String nombre = txtNombre.getText();
+    String user = txtUser.getText();
+    String pass = String.valueOf(txtPass.getPassword());
+    int edad = (int) spnEdad.getValue();
+    char genero = cmbGenero.getSelectedItem().toString().charAt(0);
+    TipoCuenta tipo = (cmbTipo.getSelectedIndex() == 0) ? TipoCuenta.PUBLICA : TipoCuenta.PRIVADA;
 
-            String rutaFoto;
+    String rutaFoto;
 
-            // --- LÓGICA DE FOTO ---
-            if (archivoSeleccionado[0] != null) {
-                // Si el usuario seleccionó foto, la guardamos en su carpeta
-                String nombreImg = "profile_" + System.currentTimeMillis();
-                rutaFoto = sistema.procesarYGuardarImagen(archivoSeleccionado[0], user, nombreImg);
-            } else {
-                // Si no seleccionó foto, dejamos vacío (el sistema generará avatar automático)
-                rutaFoto = "";
-            }
+    // --- LÓGICA CORREGIDA DE FOTO ---
+    if (archivoSeleccionado[0] != null) {
+        // Usamos el método que RECORTA en cuadrado (ideal para perfil)
+        String nombreImg = "profile_" + System.currentTimeMillis();
+        rutaFoto = sistema.procesarImagenPerfil(archivoSeleccionado[0], user, nombreImg);
+    } else {
+        rutaFoto = ""; // Avatar por defecto
+    }
 
-            boolean exito = sistema.registrarUsuario(user, pass, nombre, genero, edad, rutaFoto, tipo);
-            if (exito) {
-                sistema.login(user, pass);
-                cargarVistaFeed();
-            } else {
-                lblErrorUser.setText("Error inesperado al registrar.");
-            }
-        });
+    boolean exito = sistema.registrarUsuario(user, pass, nombre, genero, edad, rutaFoto, tipo);
+    if (exito) {
+        sistema.login(user, pass);
+        cargarVistaFeed();
+    } else {
+        lblErrorUser.setText("Error inesperado al registrar.");
+    }
+});
 
         revalidate();
         repaint();
@@ -811,151 +810,198 @@ public class VentanaPrincipal extends JFrame {
             }
         });
     }
+//POST
+private JPanel crearPanelPost(Publicacion p) {
+    // 1. DEFINIR DIMENSIONES FIJAS DESKTOP (Punto 4.1)
+    int anchoImg = 600;
+    int altoFinal = 600; // Default: Cuadrada (600x600)
 
-    private JPanel crearPanelPost(Publicacion p) {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBackground(Color.WHITE);
-        panel.setMaximumSize(new Dimension(600, 750)); // Un poco más alto para los botones
-        panel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(10, 10, 10, 10),
-                BorderFactory.createLineBorder(new Color(230, 230, 230))));
-
-        // 1. HEADER (Autor)
-        JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        header.setBackground(Color.WHITE);
-        JLabel lblFoto = new JLabel();
-        lblFoto.setPreferredSize(new Dimension(40, 40));
-        ImageIcon iconoCircular = cargarFotoPerfil(p.getAutor(), 40);
-        if (iconoCircular != null) {
-            lblFoto.setIcon(iconoCircular);
-        } else {
-            lblFoto.setIcon(crearIconoCircular(new ImageIcon(), 40));
-            lblFoto.setOpaque(true);
-            lblFoto.setBackground(new Color(230, 230, 230));
-        }
-
-        JLabel lblUser = new JLabel(p.getAutor());
-        lblUser.setFont(new Font("Arial", Font.BOLD, 14));
-        lblUser.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        lblUser.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                cargarVistaPerfil(p.getAutor());
-            }
-        });
-        header.add(lblFoto);
-        header.add(lblUser);
-
-        // 2. IMAGEN
-        JLabel lblImagen = new JLabel();
-        lblImagen.setPreferredSize(new Dimension(600, 500));
-        lblImagen.setHorizontalAlignment(SwingConstants.CENTER);
-        lblImagen.setBackground(Color.LIGHT_GRAY);
-        lblImagen.setOpaque(true);
-        try {
-            if (p.getRutaImagen() != null && !p.getRutaImagen().isEmpty()) {
-                File f = new File(p.getRutaImagen());
-                if (f.exists()) {
-                    ImageIcon icono = new ImageIcon(p.getRutaImagen());
-                    Image img = icono.getImage().getScaledInstance(600, 500, Image.SCALE_SMOOTH);
-                    lblImagen.setIcon(new ImageIcon(img));
-                } else {
-                    lblImagen.setText("Imagen no encontrada");
-                }
-            } else {
-                lblImagen.setText("Sin Imagen");
-            }
-        } catch (Exception e) {
-            lblImagen.setText("Error img");
-        }
-
-        // 3. ACCIONES (LIKE, COMMENT, SHARE)
-        JPanel panelAcciones = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 5));
-        panelAcciones.setBackground(Color.WHITE);
-
-        // --- BOTÓN LIKE ---
-        JButton btnLike = new JButton();
-        btnLike.setBorderPainted(false);
-        btnLike.setBackground(Color.WHITE);
-        btnLike.setFocusPainted(false);
-        btnLike.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
-        // Verificar estado inicial
-        boolean tieneLike = sistema.yaDioLike(p.getAutor(), p.getFecha().toString());
-        actualizarIconoLike(btnLike, tieneLike);
-
-        btnLike.addActionListener(ev -> {
-            boolean estadoActual = sistema.toggleLike(p.getAutor(), p.getFecha().toString());
-            actualizarIconoLike(btnLike, estadoActual);
-        });
-
-        // --- BOTÓN COMENTAR ---
-        JButton btnComment = new JButton();
-        if (sidebarIconsNormal.containsKey("Comment")) {
-            btnComment.setIcon(sidebarIconsNormal.get("Comment"));
-        } else {
-            btnComment.setText("💬");
-        }
-        btnComment.setBorderPainted(false);
-        btnComment.setBackground(Color.WHITE);
-        btnComment.setFocusPainted(false);
-        btnComment.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
-        btnComment.addActionListener(ev -> {
-            abrirDialogoComentarios(p);
-        });
-
-        // --- BOTÓN SHARE ---
-           // --- BOTÓN SHARE ---
-        JButton btnShare = new JButton();
-        // ... configuración de icono ...
-        
-        btnShare.addActionListener(ev -> {
-            String destino = JOptionPane.showInputDialog(this, "¿A qué usuario quieres enviar este post?");
-            if (destino != null && !destino.isEmpty()) {
-                // VALIDACIÓN DE PRIVACIDAD
-                if (!sistema.puedeCompartirPost(destino, p.getAutor())) {
-                    JOptionPane.showMessageDialog(this, 
-                        "No puedes compartir este post. El autor tiene cuenta privada y no son mutuales.", 
-                        "Error de Privacidad", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
+    // Lógica para detectar si es Vertical u Horizontal
+    try {
+        if (p.getRutaImagen() != null && !p.getRutaImagen().isEmpty()) {
+            File f = new File(p.getRutaImagen());
+            if (f.exists()) {
+                ImageIcon iconoOriginal = new ImageIcon(p.getRutaImagen());
+                int anchoOrig = iconoOriginal.getIconWidth();
+                int altoOrig = iconoOriginal.getIconHeight();
                 
-                sistema.compartirPost(destino, p.getAutor(), p.getRutaImagen(), p.getContenido());
-                JOptionPane.showMessageDialog(this, "Post enviado a " + destino);
-                // Efecto visual
-                if (sidebarIconsBold.containsKey("Share")) btnShare.setIcon(sidebarIconsBold.get("Share"));
-                Timer t = new Timer(1000, e -> { if(sidebarIconsNormal.containsKey("Share")) btnShare.setIcon(sidebarIconsNormal.get("Share")); });
-                t.setRepeats(false); t.start();
+                if (anchoOrig > 0) {
+                    double ratio = (double) altoOrig / anchoOrig;
+                    
+                    if (ratio > 1.1) { 
+                        altoFinal = 750; // Vertical (600x750)
+                    } else if (ratio < 0.9) { 
+                        altoFinal = 400; // Horizontal (600x400)
+                    } else { 
+                        altoFinal = 600; // Cuadrada
+                    }
+                }
             }
-        });
-        panelAcciones.add(btnLike);
-        panelAcciones.add(btnComment);
-        panelAcciones.add(btnShare);
-
-        // 4. FOOTER (Contenido y Fecha)
-        JPanel footer = new JPanel();
-        footer.setLayout(new BoxLayout(footer, BoxLayout.Y_AXIS));
-        footer.setBackground(Color.WHITE);
-        footer.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-
-        String textoMostrar = "<html><b>" + p.getAutor() + "</b> " + p.getContenido() + "</html>";
-        JLabel lblContenido = new JLabel(textoMostrar);
-        lblContenido.setFont(new Font("Arial", Font.PLAIN, 13));
-
-        JLabel lblFecha = new JLabel(p.getFecha().toString() + " " + p.getHoraFormateada());
-        lblFecha.setForeground(COLOR_FONT);
-        lblFecha.setFont(new Font("Arial", Font.ITALIC, 11));
-
-        footer.add(panelAcciones); // Añadimos los botones arriba del texto
-        footer.add(lblContenido);
-        footer.add(lblFecha);
-
-        panel.add(header, BorderLayout.NORTH);
-        panel.add(lblImagen, BorderLayout.CENTER);
-        panel.add(footer, BorderLayout.SOUTH);
-        return panel;
+        }
+    } catch (Exception e) {
+        System.out.println("Error detectando dimensiones: " + e.getMessage());
     }
+
+    JPanel panel = new JPanel(new BorderLayout());
+    panel.setBackground(Color.WHITE);
+    // Ajustamos el tamaño máximo del panel según la imagen calculada
+    panel.setMaximumSize(new Dimension(anchoImg, altoFinal + 200)); 
+    panel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createEmptyBorder(10, 10, 10, 10),
+            BorderFactory.createLineBorder(new Color(230, 230, 230))));
+
+    // 2. HEADER (Autor)
+    JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT));
+    header.setBackground(Color.WHITE);
+    
+    JLabel lblFoto = new JLabel();
+    lblFoto.setPreferredSize(new Dimension(40, 40));
+    ImageIcon iconoCircular = cargarFotoPerfil(p.getAutor(), 40);
+
+    if (iconoCircular != null) {
+        lblFoto.setIcon(iconoCircular);
+    } else {
+        lblFoto.setIcon(crearAvatarDefault(p.getAutor(), 40));
+    }
+    
+    // IMPORTANTE: Quitar opacidad y fondo para que los bordes del círculo se vean limpios
+    lblFoto.setOpaque(false); 
+    lblFoto.setBackground(new Color(0,0,0,0)); // Transparente
+
+    JLabel lblUser = new JLabel(p.getAutor());
+    lblUser.setFont(new Font("Arial", Font.BOLD, 14));
+    lblUser.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    lblUser.addMouseListener(new MouseAdapter() {
+        @Override
+        public void mouseClicked(MouseEvent e) {
+            cargarVistaPerfil(p.getAutor());
+        }
+    });
+    header.add(lblFoto);
+    header.add(lblUser);
+
+    // 3. IMAGEN
+    JLabel lblImagen = new JLabel();
+    lblImagen.setHorizontalAlignment(SwingConstants.CENTER);
+    lblImagen.setBackground(Color.LIGHT_GRAY);
+    lblImagen.setOpaque(true);
+    
+    try {
+        if (p.getRutaImagen() != null && !p.getRutaImagen().isEmpty()) {
+            File f = new File(p.getRutaImagen());
+            if (f.exists()) {
+                ImageIcon iconoOriginal = new ImageIcon(p.getRutaImagen());
+                // Escalar imagen al tamaño calculado
+                Image img = iconoOriginal.getImage().getScaledInstance(anchoImg, altoFinal, Image.SCALE_SMOOTH);
+                lblImagen.setIcon(new ImageIcon(img));
+                lblImagen.setPreferredSize(new Dimension(anchoImg, altoFinal));
+            } else {
+                lblImagen.setText("Imagen no encontrada");
+                lblImagen.setPreferredSize(new Dimension(anchoImg, 400));
+            }
+        } else {
+            lblImagen.setText("Sin Imagen");
+            lblImagen.setPreferredSize(new Dimension(anchoImg, 400));
+        }
+    } catch (Exception e) {
+        lblImagen.setText("Error img");
+        lblImagen.setPreferredSize(new Dimension(anchoImg, 400));
+    }
+
+    // 4. ACCIONES (LIKE, COMMENT, SHARE)
+    JPanel panelAcciones = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 5));
+    panelAcciones.setBackground(Color.WHITE);
+
+    // --- BOTÓN LIKE ---
+    JButton btnLike = new JButton();
+    btnLike.setBorderPainted(false);
+    btnLike.setBackground(Color.WHITE);
+    btnLike.setFocusPainted(false);
+    btnLike.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+    boolean tieneLike = sistema.yaDioLike(p.getAutor(), p.getFecha().toString());
+    actualizarIconoLike(btnLike, tieneLike);
+
+    btnLike.addActionListener(ev -> {
+        boolean estadoActual = sistema.toggleLike(p.getAutor(), p.getFecha().toString());
+        actualizarIconoLike(btnLike, estadoActual);
+    });
+
+    // --- BOTÓN COMENTAR ---
+    JButton btnComment = new JButton();
+    if (sidebarIconsNormal.containsKey("Comment")) {
+        btnComment.setIcon(sidebarIconsNormal.get("Comment"));
+    } else {
+        btnComment.setText("💬");
+    }
+    btnComment.setBorderPainted(false);
+    btnComment.setBackground(Color.WHITE);
+    btnComment.setFocusPainted(false);
+    btnComment.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    btnComment.addActionListener(ev -> abrirDialogoComentarios(p));
+
+    // --- BOTÓN SHARE ---
+    JButton btnShare = new JButton();
+    if (sidebarIconsNormal.containsKey("Share")) {
+        btnShare.setIcon(sidebarIconsNormal.get("Share"));
+    } else {
+        btnShare.setText("➤"); // Icono fallback
+    }
+    btnShare.setBorderPainted(false);
+    btnShare.setBackground(Color.WHITE);
+    btnShare.setFocusPainted(false);
+    btnShare.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+    btnShare.addActionListener(ev -> {
+        String destino = JOptionPane.showInputDialog(this, "¿A qué usuario quieres enviar este post?");
+        if (destino != null && !destino.isEmpty()) {
+            if (!sistema.puedeCompartirPost(destino, p.getAutor())) {
+                JOptionPane.showMessageDialog(this, 
+                    "No puedes compartir este post. El autor tiene cuenta privada y no son mutuales.", 
+                    "Error de Privacidad", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            sistema.compartirPost(destino, p.getAutor(), p.getRutaImagen(), p.getContenido());
+            JOptionPane.showMessageDialog(this, "Post enviado a " + destino);
+            
+            // Efecto visual simple
+            if (sidebarIconsBold.containsKey("Share")) btnShare.setIcon(sidebarIconsBold.get("Share"));
+            Timer t = new Timer(1000, e -> { 
+                if(sidebarIconsNormal.containsKey("Share")) btnShare.setIcon(sidebarIconsNormal.get("Share")); 
+            });
+            t.setRepeats(false); 
+            t.start();
+        }
+    });
+    
+    panelAcciones.add(btnLike);
+    panelAcciones.add(btnComment);
+    panelAcciones.add(btnShare);
+
+    // 5. FOOTER (Contenido y Fecha)
+    JPanel footer = new JPanel();
+    footer.setLayout(new BoxLayout(footer, BoxLayout.Y_AXIS));
+    footer.setBackground(Color.WHITE);
+    footer.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+
+    String textoMostrar = "<html><b>" + p.getAutor() + "</b> " + p.getContenido() + "</html>";
+    JLabel lblContenido = new JLabel(textoMostrar);
+    lblContenido.setFont(new Font("Arial", Font.PLAIN, 13));
+
+    JLabel lblFecha = new JLabel(p.getFecha().toString() + " " + p.getHoraFormateada());
+    lblFecha.setForeground(COLOR_FONT);
+    lblFecha.setFont(new Font("Arial", Font.ITALIC, 11));
+
+    footer.add(panelAcciones); 
+    footer.add(lblContenido);
+    footer.add(lblFecha);
+
+    panel.add(header, BorderLayout.NORTH);
+    panel.add(lblImagen, BorderLayout.CENTER);
+    panel.add(footer, BorderLayout.SOUTH);
+    return panel;
+}
 
     // Método auxiliar para cambiar el icono del like
     private void actualizarIconoLike(JButton btn, boolean activo) {
@@ -1222,11 +1268,12 @@ private void abrirDialogoNuevaPublicacion() {
         JLabel lblFoto = new JLabel();
         lblFoto.setPreferredSize(new Dimension(150, 150));
         lblFoto.setHorizontalAlignment(SwingConstants.CENTER);
+        lblFoto.setOpaque(false);
         ImageIcon iconoCircular = cargarFotoPerfil(usernameVisitar, 150);
         if (iconoCircular != null) {
             lblFoto.setIcon(iconoCircular);
         } else {
-            lblFoto.setText("Foto");
+         lblFoto.setIcon(crearAvatarDefault(usernameVisitar, 150));
         }
         lblFoto.setBorder(new LineBorder(new Color(230, 230, 230), 2, true));
         header.add(lblFoto, BorderLayout.WEST);
@@ -1295,16 +1342,18 @@ private void abrirDialogoNuevaPublicacion() {
             btnEditar.setBorderPainted(false);
             btnEditar.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
-            // Acción para cambiar foto
+                      // Acción para cambiar foto
             btnEditar.addActionListener(ev -> {
                 JFileChooser fc = new JFileChooser();
-                fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Imágenes", "jpg", "png"));
+                fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Imágenes", "jpg", "png", "jpeg"));
                 int res = fc.showOpenDialog(this);
 
                 if (res == JFileChooser.APPROVE_OPTION) {
                     File archivo = fc.getSelectedFile();
                     String nombreImg = "profile_" + System.currentTimeMillis();
-                    String ruta = sistema.procesarYGuardarImagen(archivo, sistema.getUsuarioActual().getUsername(), nombreImg);
+                    
+                    // CAMBIO: Usamos el método de RECORTAR (procesarImagenPerfil)
+                    String ruta = sistema.procesarImagenPerfil(archivo, sistema.getUsuarioActual().getUsername(), nombreImg);
 
                     if (ruta != null) {
                         sistema.actualizarFotoPerfil(sistema.getUsuarioActual().getUsername(), ruta);
@@ -1462,66 +1511,93 @@ private void abrirDialogoNuevaPublicacion() {
     // ---------------------------------------------------------
     // CARGA DE FOTO PERFIL
     // ---------------------------------------------------------
-    private ImageIcon cargarFotoPerfil(String username, int diametro) {
-        Usuario u = sistema.buscarUsuario(username);
+private ImageIcon cargarFotoPerfil(String username, int diametro) {
+    Usuario u = sistema.buscarUsuario(username);
 
-        // Si el usuario no existe, retornamos null (manejado en el llamador)
-        if (u == null) {
-            return crearAvatarDefault(username, diametro);
-        }
+    if (u == null) {
+        return crearAvatarDefault(username, diametro);
+    }
 
-        String ruta = u.getFotoPerfil();
+    String ruta = u.getFotoPerfil();
+    
+    // Validación robustez: ruta nula, vacía o literal "null"
+    if (ruta == null || ruta.isEmpty() || ruta.equals("null")) {
+        return crearAvatarDefault(username, diametro);
+    }
 
-        // Si la ruta está vacía, es null o es el string literal "default_profile.png", generamos avatar
-        if (ruta == null || ruta.isEmpty() || ruta.equals("default_profile.png") || ruta.equals("null")) {
-            return crearAvatarDefault(username, diametro);
-        }
-
+    File f = new File(ruta);
+    if (f.exists()) {
         try {
-            File f = new File(ruta);
-            if (f.exists()) {
-                ImageIcon icon = new ImageIcon(ruta);
-                return crearIconoCircular(icon, diametro);
-            } else {
-                // Si el archivo no existe (borrado manual), generamos avatar
-                return crearAvatarDefault(username, diametro);
+            // Usamos ImageIO para asegurar que la imagen es válida
+            BufferedImage imgBuffer = javax.imageio.ImageIO.read(f);
+            if (imgBuffer != null) {
+                return crearIconoCircular(new ImageIcon(imgBuffer), diametro);
             }
         } catch (Exception e) {
-            return crearAvatarDefault(username, diametro);
+            System.out.println("Error cargando imagen: " + e.getMessage());
         }
-    }
+    } 
+    
+    // Si el archivo no existe o falló la carga
+    return crearAvatarDefault(username, diametro);
+}
 
     private ImageIcon crearAvatarDefault(String username, int diametro) {
-        BufferedImage img = new BufferedImage(diametro, diametro, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2 = img.createGraphics();
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g2.setColor(new Color(220, 220, 220));
-        g2.fillOval(0, 0, diametro, diametro);
-        g2.setColor(Color.DARK_GRAY);
-        g2.setFont(new Font("Arial", Font.BOLD, diametro / 2));
-        String letra = username.isEmpty() ? "?" : username.substring(0, 1).toUpperCase();
-        FontMetrics fm = g2.getFontMetrics();
-        int x = (diametro - fm.stringWidth(letra)) / 2;
-        int y = (fm.getAscent() + (diametro - fm.getAscent()) / 2);
-        g2.drawString(letra, x, y);
-        g2.dispose();
-        return new ImageIcon(img);
-    }
+    // Creamos una imagen con canal alfa (transparencia)
+    BufferedImage img = new BufferedImage(diametro, diametro, BufferedImage.TYPE_INT_ARGB);
+    Graphics2D g2 = img.createGraphics();
+    
+    // Activar antialiasing para que el círculo sea suave
+    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+    
+    // 1. Dibujar el círculo de fondo (Gris claro)
+    g2.setColor(new Color(230, 230, 230));
+    g2.fillOval(0, 0, diametro, diametro);
+    
+    // 2. Dibujar la letra (Gris oscuro)
+    g2.setColor(Color.DARK_GRAY);
+    g2.setFont(new Font("Arial", Font.BOLD, diametro / 2));
+    
+    String letra = username.isEmpty() ? "?" : username.substring(0, 1).toUpperCase();
+    FontMetrics fm = g2.getFontMetrics();
+    int x = (diametro - fm.stringWidth(letra)) / 2;
+    int y = (fm.getAscent() + (diametro - fm.getAscent()) / 2);
+    g2.drawString(letra, x, y);
+    
+    g2.dispose();
+    return new ImageIcon(img);
+}
 
-    private ImageIcon crearIconoCircular(ImageIcon iconoOriginal, int diametro) {
-        try {
-            Image imgEscalada = iconoOriginal.getImage().getScaledInstance(diametro, diametro, Image.SCALE_SMOOTH);
-            BufferedImage buffer = new BufferedImage(diametro, diametro, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D g2 = buffer.createGraphics();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setClip(new java.awt.geom.Ellipse2D.Double(0, 0, diametro, diametro));
-            g2.drawImage(imgEscalada, 0, 0, null);
-            g2.dispose();
-            return new ImageIcon(buffer);
-        } catch (Exception e) {
-            return null;
-        }
+private ImageIcon crearIconoCircular(ImageIcon iconoOriginal, int diametro) {
+    try {
+        // Escalar imagen original al tamaño deseado
+        Image imgEscalada = iconoOriginal.getImage().getScaledInstance(diametro, diametro, Image.SCALE_SMOOTH);
+        
+        // Crear buffer con transparencia
+        BufferedImage buffer = new BufferedImage(diametro, diametro, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = buffer.createGraphics();
+        
+        // Configurar calidad
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        
+        // Crear el clip circular
+        g2.setClip(new java.awt.geom.Ellipse2D.Double(0, 0, diametro, diametro));
+        
+        // Dibujar la imagen
+        g2.drawImage(imgEscalada, 0, 0, null);
+        
+        // Opcional: Dibujar un borde gris suave
+        g2.setColor(new Color(200, 200, 200));
+        g2.setStroke(new BasicStroke(1f)); // Borde de 1 pixel
+        g2.drawOval(0, 0, diametro-1, diametro-1);
+        
+        g2.dispose();
+        return new ImageIcon(buffer);
+    } catch (Exception e) {
+        return null;
     }
+}
 
     // ---------------------------------------------------------
     // VISTA 5: BÚSQUEDA
@@ -1741,7 +1817,6 @@ private void cargarVistaInbox() {
             } else if (!sistema.puedeEnviarMensaje(destino)) {
                  JOptionPane.showMessageDialog(this, "No puedes enviar (Privado).");
             } else {
-                cargarVistaInbox();
                 mostrarChatLive(panelChat, destino);
             }
         }
