@@ -127,6 +127,9 @@ public class VentanaPrincipal extends JFrame {
     // ---------------------------------------------------------
     // ---------------------------------------------------------
     private void inicializarComponentesLogin() {
+        if (chatTimer != null) {
+            chatTimer.stop();
+        }
         getContentPane().removeAll();
         getContentPane().setLayout(null);
         getContentPane().setBackground(COLOR_FONDO);
@@ -1022,21 +1025,34 @@ public class VentanaPrincipal extends JFrame {
                 return;
             }
 
-            // --- NUEVO: PROCESAR IMAGEN ---
-            // Generamos un nombre único para el archivo
+            // --- NUEVO: EXTRAER HASHTAGS Y MENCIONES AUTOMÁTICAMENTE ---
+            StringBuilder hashtags = new StringBuilder();
+            StringBuilder menciones = new StringBuilder();
+
+            // Separamos el texto por espacios para analizar cada palabra
+            for (String palabra : texto.split(" ")) {
+                if (palabra.startsWith("#")) {
+                    hashtags.append(palabra).append(" "); // Agregamos espacio para separar
+                } else if (palabra.startsWith("@")) {
+                    menciones.append(palabra).append(" ");
+                }
+            }
+            // -------------------------------------------------------------
+
             String nombreImg = "post_" + System.currentTimeMillis();
             File archivoOriginal = new File(rutaSeleccionada[0]);
 
-            // Llamamos al sistema para recortar y guardar
+            // Usamos el método mejorado de Sistema para guardar la imagen
             String rutaFinal = sistema.procesarYGuardarImagen(archivoOriginal, sistema.getUsuarioActual().getUsername(), nombreImg);
 
             if (rutaFinal != null) {
-                // Guardamos la publicacion con la RUTA PROCESADA
-                boolean exito = sistema.crearPublicacion(texto, rutaFinal, "", "");
+                // Pasamos los hashtags y menciones extraídos (trim elimina el último espacio sobrante)
+                boolean exito = sistema.crearPublicacion(texto, rutaFinal, hashtags.toString().trim(), menciones.toString().trim());
+
                 if (exito) {
                     JOptionPane.showMessageDialog(dialog, "¡Publicado con éxito!");
                     dialog.dispose();
-                    cargarVistaFeed();
+                    cargarVistaFeed(); // Recargamos el feed para ver el nuevo post
                 } else {
                     JOptionPane.showMessageDialog(dialog, "Error al guardar la publicación.");
                 }
@@ -1103,6 +1119,9 @@ public class VentanaPrincipal extends JFrame {
         btnNuevo.addActionListener(e -> abrirDialogoNuevaPublicacion());
         btnPerfil.addActionListener(e -> cargarVistaPerfil(sistema.getUsuarioActual().getUsername()));
         btnCerrarSesion.addActionListener(e -> {
+            if (chatTimer != null) {
+                chatTimer.stop();
+            }
             sistema.logout();
             inicializarComponentesLogin();
         });
@@ -1139,166 +1158,235 @@ public class VentanaPrincipal extends JFrame {
     // ---------------------------------------------------------
     // VISTA 4: PERFIL
     // ---------------------------------------------------------
-    private void cargarVistaPerfil(String usernameVisitar) {
-        vistaActual = "Profile"; // Definir vista actual
-        getContentPane().removeAll();
-        setLayout(new BorderLayout());
-        getContentPane().setBackground(COLOR_FONDO);
-        add(crearPanelSidebar(), BorderLayout.WEST); // Recrear sidebar con nuevo estado
+  private void cargarVistaPerfil(String usernameVisitar) {
+    vistaActual = "Profile"; // Definir vista actual
+    getContentPane().removeAll();
+    setLayout(new BorderLayout());
+    getContentPane().setBackground(COLOR_FONDO);
+    add(crearPanelSidebar(), BorderLayout.WEST); // Recrear sidebar con nuevo estado
 
-        JPanel panelContenido = new JPanel(new BorderLayout());
-        panelContenido.setBackground(COLOR_FONDO);
-        JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(COLOR_FONDO);
-        header.setBorder(BorderFactory.createEmptyBorder(40, 50, 20, 50));
+    JPanel panelContenido = new JPanel(new BorderLayout());
+    panelContenido.setBackground(COLOR_FONDO);
+    JPanel header = new JPanel(new BorderLayout());
+    header.setBackground(COLOR_FONDO);
+    header.setBorder(BorderFactory.createEmptyBorder(40, 50, 20, 50));
 
-        JLabel lblFoto = new JLabel();
-        lblFoto.setPreferredSize(new Dimension(150, 150));
-        lblFoto.setHorizontalAlignment(SwingConstants.CENTER);
-        ImageIcon iconoCircular = cargarFotoPerfil(usernameVisitar, 150);
-        if (iconoCircular != null) {
-            lblFoto.setIcon(iconoCircular);
-        } else {
-            lblFoto.setText("Foto");
-        }
-        lblFoto.setBorder(new LineBorder(new Color(230, 230, 230), 2, true));
-        header.add(lblFoto, BorderLayout.WEST);
-
-        JPanel infoPanel = new JPanel();
-        infoPanel.setLayout(new BoxLayout(infoPanel, BoxLayout.Y_AXIS));
-        infoPanel.setBackground(COLOR_FONDO);
-        JPanel fila1 = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        fila1.setBackground(COLOR_FONDO);
-        JLabel lblUsername = new JLabel(usernameVisitar);
-        lblUsername.setFont(new Font("Arial", Font.BOLD, 24));
-        fila1.add(lblUsername);
-
-        if (!usernameVisitar.equals(sistema.getUsuarioActual().getUsername())) {
-            JButton btnSeguir = new JButton();
-            if (sistema.yaLoSigo(usernameVisitar)) {
-                btnSeguir.setText("Dejar de seguir");
-            } else {
-                btnSeguir.setText("Seguir");
-                btnSeguir.setBackground(COLOR_BOTTON);
-                btnSeguir.setForeground(Color.WHITE);
-            }
-            btnSeguir.setFont(new Font("Arial", Font.BOLD, 12));
-            btnSeguir.setBorderPainted(false);
-            btnSeguir.setOpaque(true);
-            btnSeguir.setCursor(new Cursor(Cursor.HAND_CURSOR));
-            btnSeguir.addActionListener(e -> {
-                sistema.seguirUsuario(usernameVisitar);
-                cargarVistaPerfil(usernameVisitar);
-            });
-            fila1.add(Box.createHorizontalStrut(20));
-            fila1.add(btnSeguir);
-        } else {
-            JButton btnEditar = new JButton("Editar Perfil");
-            btnEditar.setFont(new Font("Arial", Font.BOLD, 12));
-            btnEditar.setBackground(COLOR_FIELD);
-            btnEditar.setFont(new Font("Arial", Font.BOLD, 12));
-            btnEditar.setBackground(COLOR_FIELD);
-            btnEditar.setBorderPainted(false);
-            btnEditar.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
-            // 2. Botón Desactivar/Activar
-            JButton btnToggle = new JButton();
-            if (sistema.getUsuarioActual().getEstadoCuenta() == EstadoCuenta.ACTIVO) {
-                btnToggle.setText("Desactivar Cuenta");
-                btnToggle.setBackground(COLOR_ERROR); // Rojo
-            } else {
-                btnToggle.setText("Activar Cuenta");
-                btnToggle.setBackground(new Color(0, 150, 0)); // Verde
-            }
-            btnToggle.setForeground(Color.WHITE);
-            btnToggle.setFont(new Font("Arial", Font.BOLD, 12));
-            btnToggle.setBorderPainted(false);
-            btnToggle.setOpaque(true);
-            btnToggle.setFocusPainted(false);
-            btnToggle.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
-            // Acción del botón Desactivar
-            btnToggle.addActionListener(ev -> {
-                int confirm = JOptionPane.showConfirmDialog(this,
-                        "¿Seguro que desea desactivar su cuenta? No aparecerá en búsquedas.",
-                        "Confirmar", JOptionPane.YES_NO_OPTION);
-
-                if (confirm == JOptionPane.YES_OPTION) {
-                    sistema.cambiarEstadoCuenta(EstadoCuenta.DESACTIVADO);
-                    sistema.logout(); // Cerramos sesión
-                    if (chatTimer != null) {
-                        chatTimer.stop(); // Paramos timers
-                    }
-                    inicializarComponentesLogin(); // Volvemos al login
-                }
-            });
-            fila1.add(Box.createHorizontalStrut(20));
-            fila1.add(btnEditar);
-            fila1.add(Box.createHorizontalStrut(10));
-            fila1.add(btnToggle);
-        }
-
-        JPanel fila2 = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        fila2.setBackground(COLOR_FONDO);
-        int posts = sistema.getCantidadPosts(usernameVisitar);
-        int followers = sistema.getCantidadFollowers(usernameVisitar);
-        int following = sistema.getCantidadFollowing(usernameVisitar);
-        fila2.add(crearLabelStat(posts, "publicaciones"));
-        fila2.add(Box.createHorizontalStrut(25));
-        fila2.add(crearLabelStat(followers, "seguidores"));
-        fila2.add(Box.createHorizontalStrut(25));
-        fila2.add(crearLabelStat(following, "seguidos"));
-
-        Usuario userVisitar = sistema.buscarUsuario(usernameVisitar);
-        String nombreReal = (userVisitar != null) ? userVisitar.getNombreCompleto() : "Nombre";
-        JLabel lblNombreReal = new JLabel(nombreReal);
-        lblNombreReal.setFont(new Font("Arial", Font.BOLD, 14));
-        JPanel fila3 = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        fila3.setBackground(COLOR_FONDO);
-        fila3.add(lblNombreReal);
-
-        infoPanel.add(fila1);
-        infoPanel.add(fila2);
-        infoPanel.add(fila3);
-        header.add(infoPanel, BorderLayout.CENTER);
-        panelContenido.add(header, BorderLayout.NORTH);
-
-        JPanel gridPanel = new JPanel(new GridLayout(0, 4, 2, 2));
-        gridPanel.setBackground(COLOR_FONDO);
-        gridPanel.setBorder(new EmptyBorder(20, 50, 20, 50));
-        ArrayList<Publicacion> postsList = sistema.getPublicacionesDeUsuario(usernameVisitar);
-        if (postsList.isEmpty()) {
-            JLabel lblVacio = new JLabel("No hay publicaciones aún.");
-            lblVacio.setHorizontalAlignment(SwingConstants.CENTER);
-            gridPanel.add(lblVacio);
-        } else {
-            for (Publicacion p : postsList) {
-                JPanel miniPanel = new JPanel(new BorderLayout());
-                miniPanel.setBackground(Color.WHITE);
-                JLabel lblImg = new JLabel();
-                try {
-                    if (p.getRutaImagen() != null) {
-                        ImageIcon icono = new ImageIcon(p.getRutaImagen());
-                        Image img = icono.getImage().getScaledInstance(200, 200, Image.SCALE_SMOOTH);
-                        lblImg.setIcon(new ImageIcon(img));
-                    }
-                } catch (Exception e) {
-                    lblImg.setText("...");
-                }
-                lblImg.setHorizontalAlignment(SwingConstants.CENTER);
-                miniPanel.add(lblImg, BorderLayout.CENTER);
-                gridPanel.add(miniPanel);
-            }
-        }
-        JScrollPane scrollGrid = new JScrollPane(gridPanel);
-        scrollGrid.setBorder(null);
-        scrollGrid.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        personalizarScrollBar(scrollGrid);
-        panelContenido.add(scrollGrid, BorderLayout.CENTER);
-        add(panelContenido, BorderLayout.CENTER);
-        revalidate();
-        repaint();
+    // --- FOTO DE PERFIL ---
+    JLabel lblFoto = new JLabel();
+    lblFoto.setPreferredSize(new Dimension(150, 150));
+    lblFoto.setHorizontalAlignment(SwingConstants.CENTER);
+    ImageIcon iconoCircular = cargarFotoPerfil(usernameVisitar, 150);
+    if (iconoCircular != null) {
+        lblFoto.setIcon(iconoCircular);
+    } else {
+        lblFoto.setText("Foto");
     }
+    lblFoto.setBorder(new LineBorder(new Color(230, 230, 230), 2, true));
+    header.add(lblFoto, BorderLayout.WEST);
+
+    // --- PANEL DE INFORMACIÓN (Derecha de la foto) ---
+    JPanel infoPanel = new JPanel();
+    infoPanel.setLayout(new BoxLayout(infoPanel, BoxLayout.Y_AXIS));
+    infoPanel.setBackground(COLOR_FONDO);
+    
+    // FILA 1: Username y Botones
+    JPanel fila1 = new JPanel(new FlowLayout(FlowLayout.LEFT));
+    fila1.setBackground(COLOR_FONDO);
+    JLabel lblUsername = new JLabel(usernameVisitar);
+    lblUsername.setFont(new Font("Arial", Font.BOLD, 24));
+    fila1.add(lblUsername);
+
+    // Lógica de botones según si es mi perfil o ajeno
+    if (!usernameVisitar.equals(sistema.getUsuarioActual().getUsername())) {
+        // --- PERFIL AJENO: LÓGICA SEGUIR / DEJAR DE SEGUIR ---
+        JButton btnSeguir = new JButton();
+        btnSeguir.setFont(new Font("Arial", Font.BOLD, 12));
+        btnSeguir.setBorderPainted(false);
+        btnSeguir.setOpaque(true);
+        btnSeguir.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        // Verificamos estado actual para poner texto y color
+        if (sistema.yaLoSigo(usernameVisitar)) {
+            btnSeguir.setText("Dejar de seguir");
+            btnSeguir.setBackground(new Color(240, 240, 240)); // Gris
+            btnSeguir.setForeground(Color.BLACK);
+        } else {
+            btnSeguir.setText("Seguir");
+            btnSeguir.setBackground(COLOR_BOTTON); // Azul
+            btnSeguir.setForeground(Color.WHITE);
+        }
+
+        // Acción inteligente del botón
+        btnSeguir.addActionListener(e -> {
+            if (sistema.yaLoSigo(usernameVisitar)) {
+                sistema.dejarDeSeguir(usernameVisitar);
+            } else {
+                sistema.seguirUsuario(usernameVisitar);
+            }
+            // Recargamos la vista para reflejar el cambio visual y contadores
+            cargarVistaPerfil(usernameVisitar);
+        });
+        
+        fila1.add(Box.createHorizontalStrut(20));
+        fila1.add(btnSeguir);
+        
+    } else {
+        // --- MI PERFIL: EDITAR Y DESACTIVAR ---
+        JButton btnEditar = new JButton("Editar Perfil");
+        btnEditar.setFont(new Font("Arial", Font.BOLD, 12));
+        btnEditar.setBackground(COLOR_FIELD);
+        btnEditar.setBorderPainted(false);
+        btnEditar.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        // Acción para cambiar foto
+        btnEditar.addActionListener(ev -> {
+            JFileChooser fc = new JFileChooser();
+            fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Imágenes", "jpg", "png"));
+            int res = fc.showOpenDialog(this);
+
+            if (res == JFileChooser.APPROVE_OPTION) {
+                File archivo = fc.getSelectedFile();
+                String nombreImg = "profile_" + System.currentTimeMillis();
+                String ruta = sistema.procesarYGuardarImagen(archivo, sistema.getUsuarioActual().getUsername(), nombreImg);
+
+                if (ruta != null) {
+                    sistema.actualizarFotoPerfil(sistema.getUsuarioActual().getUsername(), ruta);
+                    cargarVistaPerfil(sistema.getUsuarioActual().getUsername()); // Recargar
+                } else {
+                    JOptionPane.showMessageDialog(this, "Error al guardar la foto.");
+                }
+            }
+        });
+
+        // Botón Desactivar Cuenta
+        JButton btnToggle = new JButton();
+        if (sistema.getUsuarioActual().getEstadoCuenta() == EstadoCuenta.ACTIVO) {
+            btnToggle.setText("Desactivar Cuenta");
+            btnToggle.setBackground(COLOR_ERROR);
+        } else {
+            btnToggle.setText("Activar Cuenta");
+            btnToggle.setBackground(new Color(0, 150, 0));
+        }
+        btnToggle.setForeground(Color.WHITE);
+        btnToggle.setFont(new Font("Arial", Font.BOLD, 12));
+        btnToggle.setBorderPainted(false);
+        btnToggle.setOpaque(true);
+        btnToggle.setFocusPainted(false);
+        btnToggle.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        btnToggle.addActionListener(ev -> {
+            int confirm = JOptionPane.showConfirmDialog(this,
+                    "¿Seguro que desea desactivar su cuenta? No aparecerá en búsquedas.",
+                    "Confirmar", JOptionPane.YES_NO_OPTION);
+
+            if (confirm == JOptionPane.YES_OPTION) {
+                sistema.cambiarEstadoCuenta(EstadoCuenta.DESACTIVADO);
+                sistema.logout();
+                if (chatTimer != null) chatTimer.stop();
+                inicializarComponentesLogin();
+            }
+        });
+
+        fila1.add(Box.createHorizontalStrut(20));
+        fila1.add(btnEditar);
+        fila1.add(Box.createHorizontalStrut(10));
+        fila1.add(btnToggle);
+    }
+
+    // FILA 2: ESTADÍSTICAS (Posts, Followers, Following)
+    JPanel fila2 = new JPanel(new FlowLayout(FlowLayout.LEFT));
+    fila2.setBackground(COLOR_FONDO);
+    int posts = sistema.getCantidadPosts(usernameVisitar);
+    int followers = sistema.getCantidadFollowers(usernameVisitar);
+    int following = sistema.getCantidadFollowing(usernameVisitar);
+
+    fila2.add(crearLabelStat(posts, "publicaciones"));
+    fila2.add(Box.createHorizontalStrut(25));
+
+    // Panel de Seguidores (Clickeable)
+    JPanel panelFollowers = crearLabelStat(followers, "seguidores");
+    panelFollowers.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    panelFollowers.addMouseListener(new MouseAdapter() {
+        @Override
+        public void mouseClicked(MouseEvent e) {
+            mostrarListaUsuarios(sistema.getListaFollowers(usernameVisitar), "Seguidores");
+        }
+    });
+    fila2.add(panelFollowers);
+    fila2.add(Box.createHorizontalStrut(25));
+
+    // Panel de Seguidos (Clickeable)
+    JPanel panelFollowing = crearLabelStat(following, "seguidos");
+    panelFollowing.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    panelFollowing.addMouseListener(new MouseAdapter() {
+        @Override
+        public void mouseClicked(MouseEvent e) {
+            mostrarListaUsuarios(sistema.getListaFollowing(usernameVisitar), "Siguiendo");
+        }
+    });
+    fila2.add(panelFollowing);
+
+    // FILA 3: NOMBRE REAL
+    Usuario userVisitar = sistema.buscarUsuario(usernameVisitar);
+    String nombreReal = (userVisitar != null) ? userVisitar.getNombreCompleto() : "Nombre";
+    JLabel lblNombreReal = new JLabel(nombreReal);
+    lblNombreReal.setFont(new Font("Arial", Font.BOLD, 14));
+    JPanel fila3 = new JPanel(new FlowLayout(FlowLayout.LEFT));
+    fila3.setBackground(COLOR_FONDO);
+    fila3.add(lblNombreReal);
+
+    // Agregamos filas al panel de información
+    infoPanel.add(fila1);
+    infoPanel.add(fila2);
+    infoPanel.add(fila3);
+    
+    header.add(infoPanel, BorderLayout.CENTER);
+    panelContenido.add(header, BorderLayout.NORTH);
+
+    // --- GRID DE PUBLICACIONES (ABAJO) ---
+    JPanel gridPanel = new JPanel(new GridLayout(0, 4, 2, 2)); // 4 columnas para Desktop
+    gridPanel.setBackground(COLOR_FONDO);
+    gridPanel.setBorder(new EmptyBorder(20, 50, 20, 50));
+    
+    ArrayList<Publicacion> postsList = sistema.getPublicacionesDeUsuario(usernameVisitar);
+    
+    if (postsList.isEmpty()) {
+        JLabel lblVacio = new JLabel("No hay publicaciones aún.");
+        lblVacio.setHorizontalAlignment(SwingConstants.CENTER);
+        gridPanel.add(lblVacio);
+    } else {
+        for (Publicacion p : postsList) {
+            JPanel miniPanel = new JPanel(new BorderLayout());
+            miniPanel.setBackground(Color.WHITE);
+            miniPanel.setBorder(new LineBorder(new Color(230, 230, 230)));
+            
+            JLabel lblImg = new JLabel();
+            try {
+                if (p.getRutaImagen() != null) {
+                    ImageIcon icono = new ImageIcon(p.getRutaImagen());
+                    Image img = icono.getImage().getScaledInstance(200, 200, Image.SCALE_SMOOTH);
+                    lblImg.setIcon(new ImageIcon(img));
+                }
+            } catch (Exception ex) {
+                lblImg.setText("Error");
+            }
+            lblImg.setHorizontalAlignment(SwingConstants.CENTER);
+            miniPanel.add(lblImg, BorderLayout.CENTER);
+            gridPanel.add(miniPanel);
+        }
+    }
+
+    JScrollPane scrollGrid = new JScrollPane(gridPanel);
+    scrollGrid.setBorder(null);
+    scrollGrid.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+    personalizarScrollBar(scrollGrid);
+    
+    panelContenido.add(scrollGrid, BorderLayout.CENTER);
+    add(panelContenido, BorderLayout.CENTER);
+    
+    revalidate();
+    repaint();
+}
 
     private JPanel crearLabelStat(int cantidad, String texto) {
         JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
@@ -1953,4 +2041,34 @@ public class VentanaPrincipal extends JFrame {
         return panel;
     }
 
+    // Diálogo simple para mostrar lista de usuarios
+    private void mostrarListaUsuarios(ArrayList<String> usuarios, String titulo) {
+        if (usuarios.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "La lista está vacía.");
+            return;
+        }
+
+        // Convertimos a array para el JList
+        String[] datos = usuarios.toArray(new String[0]);
+        JList<String> lista = new JList<>(datos);
+        JScrollPane scroll = new JScrollPane(lista);
+        scroll.setPreferredSize(new Dimension(300, 400));
+
+        // Evento para ver perfil al hacer clic
+        lista.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 1) { // Un solo clic
+                    String seleccionado = lista.getSelectedValue();
+                    if (seleccionado != null) {
+                        cargarVistaPerfil(seleccionado);
+                        // Cerramos el diálogo (necesitamos referencia, usamos una variable final)
+                        ((JDialog) SwingUtilities.getWindowAncestor(lista)).dispose();
+                    }
+                }
+            }
+        });
+
+        JOptionPane.showMessageDialog(this, scroll, titulo, JOptionPane.PLAIN_MESSAGE);
+    }
 }

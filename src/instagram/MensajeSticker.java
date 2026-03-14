@@ -4,6 +4,8 @@
  */
 package instagram;
 
+import java.time.format.DateTimeFormatter;
+
 public class MensajeSticker extends Mensaje {
     private String rutaSticker;
 
@@ -14,12 +16,13 @@ public class MensajeSticker extends Mensaje {
 
     @Override
     public String getContenido() {
-        // Como la interfaz espera texto, devolvemos un placeholder o la ruta
         return rutaSticker; 
     }
 
     @Override
     public String toFileString() {
-        return emisor + "|" + receptor + "|STICKER|" + estado + "|" + rutaSticker;
+        // FORMATO ACTUALIZADO
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("HH:mm:ss");
+        return emisor + "|" + receptor + "|STICKER|" + estado + "|" + fecha.toString() + "|" + hora.format(dtf) + "|" + rutaSticker;
     }
 }

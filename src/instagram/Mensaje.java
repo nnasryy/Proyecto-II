@@ -20,26 +20,26 @@ public abstract class Mensaje implements Serializable {
         this.estado = "NO_LEIDO";
     }
     
-    public Mensaje() {} // Constructor vacío para lectura
+    public Mensaje() {} 
 
     // --- MÉTODOS ABSTRACTOS ---
-    public abstract String getContenido(); // <--- ESTO FALTABA. Soluciona el error en VentanaPrincipal
-    public abstract String toFileString(); // Cada hijo guarda diferente
+    public abstract String getContenido(); 
+    public abstract String toFileString(); 
 
-    // --- MÉTODO ESTÁTICO FÁBRICA (Para leer archivos) ---
+    // --- MÉTODO ESTÁTICO FÁBRICA (ACTUALIZADO) ---
     public static Mensaje fromFileString(String linea) {
         try {
-            // Formato esperado: EMISOR|RECEPTOR|TIPO|ESTADO|CONTENIDO
-            // Nota: Tu formato antiguo tenía fecha/hora, si tu archivo antiguo existe, 
-            // este método debe adaptarse. Asumiremos el nuevo formato simplificado para el ejemplo.
+            // NUEVO FORMATO: EMISOR|RECEPTOR|TIPO|ESTADO|FECHA|HORA|CONTENIDO
             String[] datos = linea.split("\\|");
-            if (datos.length < 5) return null; // Línea corrupta
+            if (datos.length < 7) return null; 
 
             String emisor = datos[0];
             String receptor = datos[1];
             String tipo = datos[2];
             String estado = datos[3];
-            String contenido = datos[4];
+            LocalDate fecha = LocalDate.parse(datos[4]);
+            LocalTime hora = LocalTime.parse(datos[5]);
+            String contenido = datos[6];
 
             Mensaje m;
             if ("STICKER".equals(tipo)) {
@@ -48,11 +48,14 @@ public abstract class Mensaje implements Serializable {
                 m = new MensajeTexto(emisor, receptor, contenido);
             }
             
-            // Restaurar estado (ya que el constructor pone NO_LEIDO por defecto)
+            // Restaurar valores leídos del archivo
+            m.fecha = fecha;
+            m.hora = hora;
             m.setEstado(estado);
             return m;
             
         } catch (Exception e) {
+            System.out.println("Error leyendo mensaje: " + e.getMessage());
             return null;
         }
     }
@@ -66,4 +69,7 @@ public abstract class Mensaje implements Serializable {
     public String getHoraFormateada() {
         return hora.format(DateTimeFormatter.ofPattern("HH:mm"));
     }
+    
+    public LocalDate getFecha() { return fecha; }
+    public LocalTime getHora() { return hora; }
 }

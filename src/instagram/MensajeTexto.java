@@ -4,6 +4,8 @@
  */
 package instagram;
 
+import java.time.format.DateTimeFormatter;
+
 public class MensajeTexto extends Mensaje {
     private String contenido;
 
@@ -14,12 +16,13 @@ public class MensajeTexto extends Mensaje {
 
     @Override
     public String getContenido() {
-        return contenido; // Devuelve el texto real
+        return contenido;
     }
 
     @Override
     public String toFileString() {
-        // Formato: EMISOR|RECEPTOR|TIPO|ESTADO|CONTENIDO
-        return emisor + "|" + receptor + "|TEXTO|" + estado + "|" + contenido;
+        // FORMATO ACTUALIZADO: EMISOR|RECEPTOR|TEXTO|ESTADO|FECHA|HORA|CONTENIDO
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("HH:mm:ss");
+        return emisor + "|" + receptor + "|TEXTO|" + estado + "|" + fecha.toString() + "|" + hora.format(dtf) + "|" + contenido;
     }
 }
