@@ -1,4 +1,4 @@
-package gui;
+
 
 import enums.EstadoCuenta;
 import enums.TipoCuenta;
