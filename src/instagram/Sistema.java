@@ -286,18 +286,18 @@ public class Sistema {
 
         try (FileWriter fw = new FileWriter(rutaInsta, true)) {
             fw.write(nueva.toFileString() + "\n");
-       if (menciones != null && !menciones.isEmpty()) {
-        String[] listaMenciones = menciones.split(" ");
-        for (String m : listaMenciones) {
-            if (m.startsWith("@")) {
-                String userMencionado = m.replace("@", "");
-                if (existeUsername(userMencionado)) {
-                    String msgNotif = "MENCION|" + usuarioActual.getUsername() + "|" + contenido + "|" + LocalDate.now();
-                    guardarNotificacion(userMencionado, msgNotif);
+            if (menciones != null && !menciones.isEmpty()) {
+                String[] listaMenciones = menciones.split(" ");
+                for (String m : listaMenciones) {
+                    if (m.startsWith("@")) {
+                        String userMencionado = m.replace("@", "");
+                        if (existeUsername(userMencionado)) {
+                            String msgNotif = "MENCION|" + usuarioActual.getUsername() + "|" + contenido + "|" + LocalDate.now();
+                            guardarNotificacion(userMencionado, msgNotif);
+                        }
+                    }
                 }
             }
-        }
-    }
             return true;
         } catch (IOException e) {
             e.printStackTrace();
@@ -599,12 +599,12 @@ public class Sistema {
             return false;
         }
 
-        // 1. Capturamos fecha y hora UNA SOLA VEZ para asegurar que sean idénticos
+        // 1. Capturamos fecha y hora UNA SOLA VEZ (Sincronización absoluta)
         LocalDate fecha = LocalDate.now();
         LocalTime hora = LocalTime.now();
 
-        Mensaje nuevo;
-        Mensaje copiaMia;
+        Mensaje nuevo; // Para el receptor
+        Mensaje copiaMia; // Para mi archivo
 
         if ("STICKER".equals(tipo)) {
             nuevo = new MensajeSticker(usuarioActual.getUsername(), receptorUsername, contenido);
@@ -616,7 +616,6 @@ public class Sistema {
 
         // 2. Forzamos la fecha y hora sincronizadas en ambos objetos
         // Nota: Como los campos son protected y estamos en el mismo paquete, podemos acceder directo.
-        // Si da error, usa setters si existen.
         nuevo.fecha = fecha;
         nuevo.hora = hora;
         nuevo.setEstado("NO_LEIDO");
@@ -1130,20 +1129,30 @@ public class Sistema {
         }
     }
 
-    public void agregarComentario(String autorPost, String fechaPost, String comentario) {
-        if (usuarioActual == null) {
-            return;
-        }
-        String rutaComments = RUTA_RAIZ + "/" + autorPost + "/comments.ins";
-        String linea = fechaPost + "|" + usuarioActual.getUsername() + "|" + comentario;
+public void agregarComentario(String autorPost, String fechaPost, String comentario) {
+    if (usuarioActual == null) return;
+    
+    String rutaComments = RUTA_RAIZ + "/" + autorPost + "/comments.ins";
+    String linea = fechaPost + "|" + usuarioActual.getUsername() + "|" + comentario;
 
-        try (FileWriter fw = new FileWriter(rutaComments, true)) {
-            fw.write(linea + "\n");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+    try (FileWriter fw = new FileWriter(rutaComments, true)) {
+        fw.write(linea + "\n");
+    } catch (IOException e) {
+        e.printStackTrace();
     }
 
+    // --- NUEVO: Notificar menciones en comentarios ---
+    String[] palabras = comentario.split(" ");
+    for (String p : palabras) {
+        if (p.startsWith("@")) {
+            String usernameMencionado = p.replace("@", "");
+            if (existeUsername(usernameMencionado)) {
+                String msgNotif = "MENCION|" + usuarioActual.getUsername() + "|" + comentario + "|" + LocalDate.now();
+                guardarNotificacion(usernameMencionado, msgNotif);
+            }
+        }
+    }
+}
     public ArrayList<String> getComentarios(String autorPost, String fechaPost) {
         ArrayList<String> lista = new ArrayList<>();
         String rutaComments = RUTA_RAIZ + "/" + autorPost + "/comments.ins";
@@ -1474,67 +1483,87 @@ public class Sistema {
             e.printStackTrace();
         }
     }
+
     public ArrayList<String> getNotificacionesGenerales() {
-    ArrayList<String> lista = new ArrayList<>();
-    if (usuarioActual == null) return lista;
-    
-    String ruta = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/notifications.ins";
-    File f = new File(ruta);
-    if (f.exists()) {
-        try (Scanner sc = new Scanner(f)) {
-            while (sc.hasNextLine()) {
-                lista.add(sc.nextLine());
+        ArrayList<String> lista = new ArrayList<>();
+        if (usuarioActual == null) {
+            return lista;
+        }
+
+        String ruta = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/notifications.ins";
+        File f = new File(ruta);
+        if (f.exists()) {
+            try (Scanner sc = new Scanner(f)) {
+                while (sc.hasNextLine()) {
+                    lista.add(sc.nextLine());
+                }
+            } catch (Exception e) {
             }
-        } catch (Exception e) { }
+        }
+        // Invertir para ver las más recientes primero
+        Collections.reverse(lista);
+        return lista;
     }
-    // Invertir para ver las más recientes primero
-    Collections.reverse(lista);
-    return lista;
-}
+
     public boolean actualizarDatosUsuario(String nuevoNombre, String nuevaPassword) {
+        if (usuarioActual == null) {
+            return false;
+        }
+
+        File archivo = new File(RUTA_USERS);
+        ArrayList<String> lineas = new ArrayList<>();
+
+        try (Scanner sc = new Scanner(archivo)) {
+            while (sc.hasNextLine()) {
+                String linea = sc.nextLine();
+                String[] datos = linea.split("\\|");
+
+                if (datos[0].equals(usuarioActual.getUsername())) {
+                    // Actualizar datos en el array
+                    datos[2] = nuevoNombre; // Nombre Completo
+
+                    // Si la nueva contraseña no está vacía, actualizar. Si no, mantener la actual.
+                    if (nuevaPassword != null && !nuevaPassword.isEmpty()) {
+                        datos[1] = nuevaPassword;
+                    }
+
+                    // Reconstruir la línea
+                    linea = String.join("|", datos);
+
+                    // Actualizar el objeto en memoria
+                    usuarioActual.setNombreCompleto(nuevoNombre);
+                    // Nota: Sería ideal agregar un setPassword en Usuario.java si no existe,
+                    // pero como es solo para login, actualizar el archivo es suficiente.
+                }
+                lineas.add(linea);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+
+        // Reescribir el archivo completo
+        try (FileWriter fw = new FileWriter(RUTA_USERS)) {
+            for (String l : lineas) {
+                fw.write(l + "\n");
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
+ }
+    public boolean eliminarSeguidor(String usernameSeguidor) {
     if (usuarioActual == null) return false;
     
-    File archivo = new File(RUTA_USERS);
-    ArrayList<String> lineas = new ArrayList<>();
-
-    try (Scanner sc = new Scanner(archivo)) {
-        while (sc.hasNextLine()) {
-            String linea = sc.nextLine();
-            String[] datos = linea.split("\\|");
-
-            if (datos[0].equals(usuarioActual.getUsername())) {
-                // Actualizar datos en el array
-                datos[2] = nuevoNombre; // Nombre Completo
-                
-                // Si la nueva contraseña no está vacía, actualizar. Si no, mantener la actual.
-                if (nuevaPassword != null && !nuevaPassword.isEmpty()) {
-                    datos[1] = nuevaPassword;
-                }
-                
-                // Reconstruir la línea
-                linea = String.join("|", datos);
-                
-                // Actualizar el objeto en memoria
-                usuarioActual.setNombreCompleto(nuevoNombre);
-                // Nota: Sería ideal agregar un setPassword en Usuario.java si no existe,
-                // pero como es solo para login, actualizar el archivo es suficiente.
-            }
-            lineas.add(linea);
-        }
-    } catch (Exception e) {
-        e.printStackTrace();
-        return false;
-    }
-
-    // Reescribir el archivo completo
-    try (FileWriter fw = new FileWriter(RUTA_USERS)) {
-        for (String l : lineas) {
-            fw.write(l + "\n");
-        }
-    } catch (IOException e) {
-        e.printStackTrace();
-        return false;
-    }
+    // 1. Quitarlo de mis followers
+    String miFollowersPath = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/followers.ins";
+    eliminarLineaDeArchivo(miFollowersPath, usernameSeguidor);
+    
+    // 2. Quitarme de su following
+    String suFollowingPath = RUTA_RAIZ + "/" + usernameSeguidor + "/following.ins";
+    eliminarLineaDeArchivo(suFollowingPath, usuarioActual.getUsername());
+    
     return true;
 }
 }
