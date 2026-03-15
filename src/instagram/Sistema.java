@@ -26,7 +26,7 @@ import java.util.Scanner;
  * Clase principal del sistema Instagram.
  *
  * Temas implementados:
- *   - Interfaces       : implementa Interaccion y Mensajeria (tus interfaces originales)
+ *   - Interfaces       : implementa Interaccion y Mensajeria
  *   - Lista enlazada   : caché de usuarios en memoria (ListaUsuarios)
  *   - Nodos            : NodoUsuario como bloque de la lista enlazada
  *   - Recursividad     : búsqueda recursiva en ListaUsuarios
@@ -45,13 +45,12 @@ public class Sistema implements Interaccion, Mensajeria {
     private Usuario usuarioActual;
 
     // ── LISTA ENLAZADA de usuarios (NodoUsuario) en memoria ─────
-    // Evita releer users.ins en cada búsqueda.
-    // Se invalida al registrar o modificar usuarios.
     private ListaUsuarios cacheUsuarios = new ListaUsuarios();
     private boolean cacheValida = false;
 
     public Sistema() {
         verificarEstructura();
+        InicializadorCuentasDefault.inicializar();   // cuentas default al primer arranque
     }
 
     public Usuario getUsuarioActual() { return usuarioActual; }
@@ -60,11 +59,6 @@ public class Sistema implements Interaccion, Mensajeria {
     //  LISTA ENLAZADA — caché de usuarios en memoria
     // ══════════════════════════════════════════════════════════════
 
-    /**
-     * Carga todos los usuarios desde users.ins a la ListaUsuarios (lista enlazada).
-     * Solo se ejecuta si la caché no es válida.
-     * Usa try-catch para manejo de excepciones de I/O.
-     */
     private void cargarCacheUsuarios() {
         if (cacheValida) return;
         cacheUsuarios.limpiar();
@@ -78,7 +72,7 @@ public class Sistema implements Interaccion, Mensajeria {
                     Usuario u = new Usuario(d[0], d[1], d[2], d[3].charAt(0),
                             Integer.parseInt(d[4]), d[5], LocalDate.parse(d[6]),
                             TipoCuenta.valueOf(d[7]), EstadoCuenta.valueOf(d[8]));
-                    cacheUsuarios.agregar(u);   // NodoUsuario → ListaUsuarios
+                    cacheUsuarios.agregar(u);
                 } catch (Exception ignorado) {}
             }
             cacheValida = true;
@@ -87,7 +81,6 @@ public class Sistema implements Interaccion, Mensajeria {
         }
     }
 
-    /** Invalida la caché para que se recargue en la próxima operación */
     private void invalidarCache() {
         cacheValida = false;
     }
@@ -96,19 +89,11 @@ public class Sistema implements Interaccion, Mensajeria {
     //  IMPLEMENTACIÓN DE Interaccion
     // ══════════════════════════════════════════════════════════════
 
-    /**
-     * Implementa Interaccion.buscar()
-     * Usa la lista enlazada (ListaUsuarios) con búsqueda recursiva.
-     */
     @Override
     public ArrayList buscar(String criterio) {
         return buscarUsuarios(criterio);
     }
 
-    /**
-     * Implementa Interaccion.existe()
-     * Usa contieneRecursivo() de ListaUsuarios.
-     */
     @Override
     public boolean existe(String username) {
         return existeUsername(username);
@@ -118,28 +103,16 @@ public class Sistema implements Interaccion, Mensajeria {
     //  IMPLEMENTACIÓN DE Mensajeria
     // ══════════════════════════════════════════════════════════════
 
-    /**
-     * Implementa Mensajeria.enviarMensaje(Mensaje)
-     * Guarda el mensaje en el inbox del receptor.
-     */
     @Override
     public boolean enviarMensaje(Mensaje m) {
         return guardarMensaje(m);
     }
 
-    /**
-     * Implementa Mensajeria.notificar()
-     * Guarda la notificación en el archivo del usuario destino.
-     */
     @Override
     public void notificar(String usernameDestino, String mensaje) {
         guardarNotificacion(usernameDestino, mensaje);
     }
 
-    /**
-     * Implementa Mensajeria.getTotalNotificacionesPendientes()
-     * Retorna cuántas notificaciones tiene el usuario actual.
-     */
     @Override
     public int getTotalNotificacionesPendientes() {
         if (usuarioActual == null) return 0;
@@ -163,7 +136,6 @@ public class Sistema implements Interaccion, Mensajeria {
         String carpeta = RUTA_RAIZ + "/stickers_globales";
         new File(carpeta).mkdirs();
 
-        // nombre_destino → nombre_en_/images
         String[][] stickers = {
             {"feliz.png",    "happy.png"},
             {"triste.png",   "crying.png"},
@@ -207,7 +179,7 @@ public class Sistema implements Interaccion, Mensajeria {
                     + nuevo.getTipoCuenta().name() + "|"
                     + nuevo.getEstadoCuenta().name() + "\n");
             crearEstructuraUsuario(username);
-            invalidarCache(); // lista enlazada en memoria desactualizada
+            invalidarCache();
             return true;
         } catch (IOException e) {
             e.printStackTrace();
@@ -248,14 +220,11 @@ public class Sistema implements Interaccion, Mensajeria {
 
     // ══════════════════════════════════════════════════════════════
     //  ESTRUCTURA DE ARCHIVOS POR USUARIO
-    //  FIX: Separar correctamente los archivos (el bug era "comments.ins, notifications.in")
     // ══════════════════════════════════════════════════════════════
     private void crearEstructuraUsuario(String username) {
         String base = RUTA_RAIZ + "/" + username;
         new File(base).mkdir();
 
-        // FIX CRÍTICO: antes era un solo string con coma → "comments.ins, notifications.in"
-        // Ahora cada archivo está en su propia entrada del array
         String[] archivos = {
             "followers.ins",
             "following.ins",
@@ -265,7 +234,7 @@ public class Sistema implements Interaccion, Mensajeria {
             "solicitudes.ins",
             "likes.ins",
             "comments.ins",
-            "notifications.ins"   // ← corregido (faltaba la 's' y estaba pegado al anterior)
+            "notifications.ins"
         };
 
         for (String archivo : archivos) {
@@ -283,68 +252,51 @@ public class Sistema implements Interaccion, Mensajeria {
     //  BÚSQUEDA / VERIFICACIÓN — usa ListaUsuarios (NodoUsuario)
     // ══════════════════════════════════════════════════════════════
 
-    /**
-     * Verifica si existe un username.
-     * Usa contieneRecursivo() de ListaUsuarios.
-     */
     public boolean existeUsername(String username) {
         cargarCacheUsuarios();
-        return cacheUsuarios.contiene(username); // RECURSIVIDAD interna
+        return cacheUsuarios.contiene(username);
     }
 
-    /**
-     * Busca un usuario por username exacto.
-     * Usa buscarRecursivo() — el método original del alumno, conservado.
-     */
     public Usuario buscarUsuario(String username) {
         cargarCacheUsuarios();
-        return cacheUsuarios.buscarRecursivo(username); // RECURSIVIDAD
+        return cacheUsuarios.buscarRecursivo(username);
     }
 
-    /**
-     * Busca usuarios por coincidencia parcial.
-     * Usa buscarPorCriterio() de ListaUsuarios (recursivo).
-     */
     public ArrayList<Usuario> buscarUsuarios(String criterio) {
         if (criterio == null || criterio.isEmpty()) return new ArrayList<>();
         cargarCacheUsuarios();
         String excluir = usuarioActual != null ? usuarioActual.getUsername() : null;
-        return cacheUsuarios.buscarPorCriterio(criterio, excluir); // RECURSIVIDAD
+        return cacheUsuarios.buscarPorCriterio(criterio, excluir);
     }
 
     // ══════════════════════════════════════════════════════════════
-    //  PUBLICACIONES — usa PublicacionFoto (herencia + polimorfismo)
+    //  PUBLICACIONES
     // ══════════════════════════════════════════════════════════════
     public boolean crearPublicacion(String contenido, String rutaImagen,
                                     String hashtags, String menciones) {
         if (usuarioActual == null) return false;
         if (contenido.length() > 220) return false;
 
-        // HERENCIA + POLIMORFISMO: usamos PublicacionFoto en lugar de Publicacion base
         PublicacionFoto nueva = new PublicacionFoto(
                 usuarioActual.getUsername(), contenido, rutaImagen, hashtags, menciones);
 
         String ruta = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/insta.ins";
         try (FileWriter fw = new FileWriter(ruta, true)) {
-            // toFileString() llama al método sobreescrito (polimorfismo)
             fw.write(nueva.toFileString() + "\n");
 
-            // Notificar menciones usando Mensajeria.notificar()
             if (menciones != null && !menciones.isEmpty()) {
                 for (String m : menciones.split(" ")) {
                     if (m.startsWith("@")) {
                         String mencionado = m.substring(1);
                         if (existeUsername(mencionado))
-                            notificar(mencionado,    // ← Mensajeria.notificar()
+                            notificar(mencionado,
                                 "MENCION|" + usuarioActual.getUsername()
                                 + "|" + contenido + "|" + LocalDate.now());
                     }
                 }
             }
 
-            // ARCHIVO BINARIO: guardar backup serializado del post
             guardarPublicacionBinario(nueva);
-
             return true;
         } catch (IOException e) {
             e.printStackTrace();
@@ -396,15 +348,37 @@ public class Sistema implements Interaccion, Mensajeria {
         // Mis propios posts
         leerPublicacionesUsuario(usuarioActual.getUsername(), timeline);
 
-        // Posts de cuentas que sigo
+        // Posts de cuentas que sigo — detectar si sigue a alguien "real" (no default)
+        boolean sigueAAlguienReal = false;
         File fFollowing = new File(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins");
+
         if (fFollowing.exists()) {
             try (Scanner sc = new Scanner(fFollowing)) {
                 while (sc.hasNextLine()) {
                     String u = sc.nextLine().trim();
-                    if (!u.isEmpty()) leerPublicacionesUsuario(u, timeline);
+                    if (u.isEmpty()) continue;
+                    leerPublicacionesUsuario(u, timeline);
+                    // Verificar si es una cuenta default
+                    boolean esDefault = false;
+                    for (String def : InicializadorCuentasDefault.USERNAMES_DEFAULT) {
+                        if (def.equals(u)) { esDefault = true; break; }
+                    }
+                    if (!esDefault) sigueAAlguienReal = true;
                 }
             } catch (Exception e) { e.printStackTrace(); }
+        }
+
+        // Si el usuario no sigue a nadie real todavía, inyectar posts de las
+        // 3 cuentas default para que el feed no aparezca vacío
+        if (!sigueAAlguienReal) {
+            for (String def : InicializadorCuentasDefault.USERNAMES_DEFAULT) {
+                // Solo agregar si no los sigue ya (para evitar duplicados)
+                boolean yaLoSigue = fFollowing.exists()
+                    && verificarEnArchivo(fFollowing.getPath(), def);
+                if (!yaLoSigue) {
+                    leerPublicacionesUsuario(def, timeline);
+                }
+            }
         }
 
         timeline.sort(Comparator.comparing(Publicacion::getFecha)
@@ -431,7 +405,6 @@ public class Sistema implements Interaccion, Mensajeria {
         Usuario u = buscarUsuario(username);
         if (u == null || u.getEstadoCuenta() == EstadoCuenta.DESACTIVADO) return lista;
 
-        // Verificar privacidad
         if (u.getTipoCuenta() == TipoCuenta.PRIVADA) {
             if (usuarioActual == null || !usuarioActual.getUsername().equals(username)) {
                 String rutaF = RUTA_RAIZ + "/" + username + "/followers.ins";
@@ -482,7 +455,6 @@ public class Sistema implements Interaccion, Mensajeria {
         return verificarEnArchivo(RUTA_RAIZ + "/" + objetivo + "/solicitudes.ins", usuarioActual.getUsername());
     }
 
-    /** Implementa Interaccion.seguirUsuario() */
     @Override
     public boolean seguirUsuario(String objetivo) {
         if (usuarioActual == null || objetivo.equals(usuarioActual.getUsername())) return false;
@@ -490,13 +462,12 @@ public class Sistema implements Interaccion, Mensajeria {
         if (u == null) return false;
 
         if (u.getTipoCuenta() == TipoCuenta.PUBLICA) {
-            String myFollowing   = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins";
+            String myFollowing    = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins";
             String theirFollowers = RUTA_RAIZ + "/" + objetivo + "/followers.ins";
             if (verificarEnArchivo(myFollowing, objetivo)) return false;
 
             appendLine(myFollowing, objetivo);
             appendLine(theirFollowers, usuarioActual.getUsername());
-            // Usa Mensajeria.notificar() en lugar de llamar guardarNotificacion directamente
             notificar(objetivo, "SEGUIDOR|" + usuarioActual.getUsername() + "|" + LocalDate.now());
             return true;
         } else {
@@ -504,7 +475,6 @@ public class Sistema implements Interaccion, Mensajeria {
         }
     }
 
-    /** Implementa Interaccion.dejarDeSeguir() */
     @Override
     public boolean dejarDeSeguir(String objetivo) {
         if (usuarioActual == null) return false;
@@ -527,7 +497,7 @@ public class Sistema implements Interaccion, Mensajeria {
     }
 
     public void aceptarSolicitud(String solicitante) {
-        String rutaSol   = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/solicitudes.ins";
+        String rutaSol     = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/solicitudes.ins";
         String miFollowers = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/followers.ins";
         String suFollowing = RUTA_RAIZ + "/" + solicitante + "/following.ins";
 
@@ -562,13 +532,10 @@ public class Sistema implements Interaccion, Mensajeria {
 
     // ══════════════════════════════════════════════════════════════
     //  LIKES
-    //  FIX: Ahora guarda también la ruta de imagen para el preview
-    //       Formato: autor|fecha|quienDioLike|rutaImagen
     // ══════════════════════════════════════════════════════════════
     public boolean yaDioLike(String autorPost, String fechaPost) {
         if (usuarioActual == null) return false;
         String ruta = RUTA_RAIZ + "/" + autorPost + "/likes.ins";
-        // Buscamos línea que empiece con autor|fecha|miUsername
         String prefijo = autorPost + "|" + fechaPost + "|" + usuarioActual.getUsername();
         File f = new File(ruta);
         if (!f.exists()) return false;
@@ -585,17 +552,12 @@ public class Sistema implements Interaccion, Mensajeria {
         return toggleLike(autorPost, fechaPost, "");
     }
 
-    /**
-     * Versión extendida que recibe la ruta de imagen del post
-     * para guardarla en la notificación y permitir preview.
-     */
     public boolean toggleLike(String autorPost, String fechaPost, String rutaImagen) {
         if (usuarioActual == null) return false;
 
         String rutaLikes = RUTA_RAIZ + "/" + autorPost + "/likes.ins";
         String prefijo   = autorPost + "|" + fechaPost + "|" + usuarioActual.getUsername();
 
-        // ¿Ya dio like?
         boolean yaLiked = false;
         String lineaExistente = null;
         File f = new File(rutaLikes);
@@ -609,11 +571,9 @@ public class Sistema implements Interaccion, Mensajeria {
         }
 
         if (yaLiked) {
-            // Quitar like
             eliminarLineaDeArchivo(rutaLikes, lineaExistente);
             return false;
         } else {
-            // Dar like — formato: autor|fecha|quien|rutaImagen
             String lineaLike = prefijo + "|" + (rutaImagen != null ? rutaImagen : "");
             try (FileWriter fw = new FileWriter(rutaLikes, true)) {
                 fw.write(lineaLike + "\n");
@@ -622,10 +582,6 @@ public class Sistema implements Interaccion, Mensajeria {
         }
     }
 
-    // ── NOTIFICACIONES DE LIKES ─────────────────────────────────
-    /**
-     * Cuenta cuántos likes tiene un post específico.
-     */
     public int getCantidadLikes(String autorPost, String fechaPost) {
         String ruta = RUTA_RAIZ + "/" + autorPost + "/likes.ins";
         File f = new File(ruta);
@@ -640,16 +596,10 @@ public class Sistema implements Interaccion, Mensajeria {
         return count;
     }
 
-    /**
-     * Devuelve notificaciones de likes con formato:
-     * autor|fecha|quien|rutaImagen  (4 campos, imagen puede estar vacía)
-     * Ya vienen del más reciente al más viejo (invertido).
-     */
     public ArrayList<String> getNotificacionesLikes() {
         ArrayList<String> notifs = new ArrayList<>();
         if (usuarioActual == null) return notifs;
         leerLineas(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/likes.ins", notifs);
-        // FIX 1: más reciente primero (el último like agregado queda al final del archivo)
         Collections.reverse(notifs);
         return notifs;
     }
@@ -665,7 +615,6 @@ public class Sistema implements Interaccion, Mensajeria {
             fw.write(linea + "\n");
         } catch (IOException e) { e.printStackTrace(); }
 
-        // Notificar menciones en comentario
         for (String p : comentario.split(" ")) {
             if (p.startsWith("@")) {
                 String mencionado = p.substring(1);
@@ -693,12 +642,9 @@ public class Sistema implements Interaccion, Mensajeria {
 
     // ══════════════════════════════════════════════════════════════
     //  NOTIFICACIONES GENERALES
-    //  FIX 1: más reciente primero ya garantizado por Collections.reverse
     // ══════════════════════════════════════════════════════════════
     private void guardarNotificacion(String destino, String mensaje) {
-        // FIX: ahora el archivo se llama notifications.ins correctamente
         String ruta = RUTA_RAIZ + "/" + destino + "/notifications.ins";
-        // Asegurar que el archivo exista (usuarios anteriores pueden no tenerlo)
         try {
             File f = new File(ruta);
             if (!f.getParentFile().exists()) f.getParentFile().mkdirs();
@@ -713,9 +659,7 @@ public class Sistema implements Interaccion, Mensajeria {
     public ArrayList<String> getNotificacionesGenerales() {
         ArrayList<String> lista = new ArrayList<>();
         if (usuarioActual == null) return lista;
-        // FIX: nombre correcto del archivo
         leerLineas(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/notifications.ins", lista);
-        // FIX 1: más reciente primero
         Collections.reverse(lista);
         return lista;
     }
@@ -735,7 +679,7 @@ public class Sistema implements Interaccion, Mensajeria {
         if (u == null) return false;
         if (u.getTipoCuenta() == TipoCuenta.PUBLICA) return true;
 
-        boolean yoLoSigo = verificarEnArchivo(
+        boolean yoLoSigo  = verificarEnArchivo(
             RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins", receptor);
         boolean elMeSigue = verificarEnArchivo(
             RUTA_RAIZ + "/" + receptor + "/followers.ins", usuarioActual.getUsername());
@@ -756,7 +700,6 @@ public class Sistema implements Interaccion, Mensajeria {
             ? new MensajeSticker(usuarioActual.getUsername(), receptor, contenido)
             : new MensajeTexto(usuarioActual.getUsername(), receptor, contenido);
 
-        // Sincronizar fecha/hora en ambos objetos
         paraReceptor.fecha = fecha; paraReceptor.hora = hora; paraReceptor.setEstado("NO_LEIDO");
         miCopia.fecha      = fecha; miCopia.hora      = hora; miCopia.setEstado("NO_LEIDO");
 
@@ -855,14 +798,11 @@ public class Sistema implements Interaccion, Mensajeria {
         File archivo = new File(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins");
         if (!archivo.exists()) return usuarios;
 
-        // Leer todas las líneas primero, luego recorrer al revés
-        // así el último mensaje de cada conversación define el orden (más reciente arriba)
         ArrayList<String> todasLineas = new ArrayList<>();
         try (Scanner sc = new Scanner(archivo)) {
             while (sc.hasNextLine()) todasLineas.add(sc.nextLine());
         } catch (Exception e) { e.printStackTrace(); }
 
-        // Recorrer de abajo hacia arriba → primer aparición = más reciente
         for (int i = todasLineas.size() - 1; i >= 0; i--) {
             Mensaje m = Mensaje.fromFileString(todasLineas.get(i));
             if (m != null) {
@@ -874,10 +814,6 @@ public class Sistema implements Interaccion, Mensajeria {
         return usuarios;
     }
 
-    /**
-     * Cuenta mensajes NO_LEIDO recibidos de un usuario específico.
-     * Usado para mostrar badge en la lista de chats.
-     */
     public int getMensajesNoLeidos(String otroUsuario) {
         if (usuarioActual == null) return 0;
         File archivo = new File(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins");
@@ -897,10 +833,6 @@ public class Sistema implements Interaccion, Mensajeria {
         return count;
     }
 
-    /**
-     * Total de mensajes no leídos en TODOS los chats.
-     * Usado para el badge del sidebar en "Mensajes".
-     */
     public int getTotalMensajesNoLeidos() {
         if (usuarioActual == null) return 0;
         File archivo = new File(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins");
@@ -978,7 +910,6 @@ public class Sistema implements Interaccion, Mensajeria {
             java.nio.file.Files.copy(origen.toPath(), dest.toPath(),
                 java.nio.file.StandardCopyOption.REPLACE_EXISTING);
 
-            // FALTANTE: registrar en stickers.ins como pide el documento
             String rutaStickersIns = RUTA_RAIZ + "/" + username + "/stickers.ins";
             appendLine(rutaStickersIns, dest.getAbsolutePath());
 
@@ -999,14 +930,13 @@ public class Sistema implements Interaccion, Mensajeria {
     }
 
     // ══════════════════════════════════════════════════════════════
-    //  BÚSQUEDA POR HASHTAG — sin duplicados (Sección 14)
+    //  BÚSQUEDA POR HASHTAG
     // ══════════════════════════════════════════════════════════════
     public ArrayList<Publicacion> buscarPorHashtag(String hashtag) {
         ArrayList<Publicacion> resultados = new ArrayList<>();
         if (hashtag == null || hashtag.isEmpty()) return resultados;
         if (!hashtag.startsWith("#")) hashtag = "#" + hashtag;
 
-        // ArrayList para rastrear IDs únicos y evitar duplicados
         ArrayList<String> idsAgregados = new ArrayList<>();
 
         File raiz = new File(RUTA_RAIZ);
@@ -1020,7 +950,6 @@ public class Sistema implements Interaccion, Mensajeria {
             for (Publicacion p : getPublicacionesDeUsuario(u)) {
                 if (p.getContenido() == null || !p.getContenido().contains(hashtag)) continue;
 
-                // Clave única: autor + fecha + hora
                 String idPost = p.getAutor() + "|" + p.getFecha() + "|" + p.getHora();
                 if (!idsAgregados.contains(idPost)) {
                     idsAgregados.add(idPost);
@@ -1130,7 +1059,7 @@ public class Sistema implements Interaccion, Mensajeria {
             int x = (ancho - lado) / 2, y = (alto - lado) / 2;
 
             BufferedImage recortada = img.getSubimage(x, y, lado, lado);
-            BufferedImage final300 = new BufferedImage(300, 300, BufferedImage.TYPE_INT_RGB);
+            BufferedImage final300  = new BufferedImage(300, 300, BufferedImage.TYPE_INT_RGB);
             Graphics2D g = final300.createGraphics();
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
             g.drawImage(recortada, 0, 0, 300, 300, null);
@@ -1150,8 +1079,8 @@ public class Sistema implements Interaccion, Mensajeria {
             if (img == null) return null;
 
             int anchoFinal = 600;
-            double ratio = (double) img.getHeight() / img.getWidth();
-            int altoFinal = Math.min((int)(anchoFinal * ratio), 800);
+            double ratio   = (double) img.getHeight() / img.getWidth();
+            int altoFinal  = Math.min((int)(anchoFinal * ratio), 800);
 
             BufferedImage final_ = new BufferedImage(anchoFinal, altoFinal, BufferedImage.TYPE_INT_RGB);
             Graphics2D g = final_.createGraphics();
@@ -1163,7 +1092,6 @@ public class Sistema implements Interaccion, Mensajeria {
             new File(ruta).mkdirs();
             String rutaFinal = ruta + "/" + nombreArchivo + ".jpg";
 
-            // Guardar con calidad alta (0.95) en lugar del default (~0.75)
             javax.imageio.ImageWriter writer = javax.imageio.ImageIO
                 .getImageWritersByFormatName("jpg").next();
             javax.imageio.ImageWriteParam param = writer.getDefaultWriteParam();
@@ -1198,7 +1126,6 @@ public class Sistema implements Interaccion, Mensajeria {
         try (Scanner sc = new Scanner(f)) {
             while (sc.hasNextLine()) {
                 String l = sc.nextLine();
-                // Para likes, texto puede ser prefijo (la línea puede tener más campos)
                 if (!l.trim().equals(texto) && !l.trim().startsWith(texto + "|"))
                     lineas.add(l);
             }
@@ -1240,7 +1167,6 @@ public class Sistema implements Interaccion, Mensajeria {
         } catch (IOException e) { e.printStackTrace(); }
     }
 
-    /** Actualiza un campo específico (por índice) en users.ins para un usuario. */
     private boolean actualizarCampoUsuario(String username, int indice, String valor) {
         File archivo = new File(RUTA_USERS);
         ArrayList<String> lineas = new ArrayList<>();
@@ -1257,50 +1183,27 @@ public class Sistema implements Interaccion, Mensajeria {
             }
         } catch (Exception e) { e.printStackTrace(); return false; }
         reescribirArchivo(RUTA_USERS, lineas);
-        invalidarCache(); // el archivo cambió → lista enlazada desactualizada
+        invalidarCache();
         return true;
     }
 
     // ══════════════════════════════════════════════════════════════
     //  ARCHIVOS BINARIOS — backup serializado de publicaciones
-    //
-    //  Cada vez que el usuario crea un post, se guarda también una
-    //  copia serializada en INSTA_RAIZ/username/backup_posts.bin
-    //  Esto demuestra el uso de ObjectOutputStream/ObjectInputStream.
     // ══════════════════════════════════════════════════════════════
-
-    /**
-     * Guarda una publicación en formato binario (serialización).
-     * Agrega al archivo existente leyendo primero la lista actual.
-     * Usa try-catch para manejo de IOException y ClassNotFoundException.
-     */
     private void guardarPublicacionBinario(Publicacion p) {
         if (usuarioActual == null) return;
         String rutaBin = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/backup_posts.bin";
 
-        // 1. Leer publicaciones existentes del binario
         ArrayList<Publicacion> lista = leerPublicacionesBinario(usuarioActual.getUsername());
-
-        // 2. Agregar la nueva
         lista.add(p);
 
-        // 3. Reescribir el archivo binario completo
         try (ObjectOutputStream oos = new ObjectOutputStream(
                 new java.io.FileOutputStream(rutaBin))) {
-            oos.writeObject(lista);  // ARCHIVO BINARIO: serialización
+            oos.writeObject(lista);
         } catch (IOException e) {
             System.out.println("Aviso: No se pudo guardar backup binario: " + e.getMessage());
         }
     }
-
-    /**
-     * Lee publicaciones desde el archivo binario de backup.
-     * Si el archivo no existe o está corrupto, devuelve lista vacía.
-     * Demuestra uso de ObjectInputStream y manejo de excepciones.
-     */
-    // ══════════════════════════════════════════════════════════════
-    //  DESCUBRIMIENTO DE CONTENIDO
-    // ══════════════════════════════════════════════════════════════
 
     @SuppressWarnings("unchecked")
     public ArrayList<Publicacion> leerPublicacionesBinario(String username) {
@@ -1310,7 +1213,7 @@ public class Sistema implements Interaccion, Mensajeria {
 
         try (ObjectInputStream ois = new ObjectInputStream(
                 new java.io.FileInputStream(rutaBin))) {
-            Object obj = ois.readObject();   // ARCHIVO BINARIO: deserialización
+            Object obj = ois.readObject();
             if (obj instanceof ArrayList) {
                 return (ArrayList<Publicacion>) obj;
             }
