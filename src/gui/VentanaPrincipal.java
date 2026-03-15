@@ -89,18 +89,18 @@ public class VentanaPrincipal extends JFrame {
         try { iconEyeOpen   = scaled("/images/ojo.png", 18, 18);        } catch (Exception ignored) {}
         try { iconCheck     = scaled("/images/check.png", 16, 16);      } catch (Exception ignored) {}
 
-        int s = 22;
+        // Sidebar icons cargados a 26px directamente — no reescalar después
+        int s = 26;
         loadIcon("Home",          "homeicon.png",    "bhomeicon.png",    s);
         loadIcon("Search",        "searchicon.png",  "bsearchicon.png",  s);
         loadIcon("Messages",      "messageicon.png", "bmessageicon.png", s);
         loadIcon("Create",        "createicon.png",  "bcreateicon.png",  s);
         loadIcon("Notifications", "hearticon.png",   "bhearticon.png",   s);
         loadIcon("Profile",       "profileicon.png", "bprofileicon.png", s);
-        loadIcon("Like",          "hearticon.png",   "bhearticon.png",   s);
-        loadIcon("Comment",       "commenticon.png", "commenticon.png",  s);
-        loadIcon("Share",         "messageicon.png", "bmessageicon.png", s);
+        loadIcon("Like",          "hearticon.png",   "bhearticon.png",   22);
+        loadIcon("Comment",       "commenticon.png", "commenticon.png",  22);
+        loadIcon("Share",         "messageicon.png", "bmessageicon.png", 22);
 
-        // Iconos nuevos para botones de acción
         loadIcon("More",    "more.png",        "more.png",        20);
         loadIcon("Sticker", "stickericon.png", "stickericon.png", 22);
         loadIcon("Send",    "messageicon.png", "messageicon.png", 22);
@@ -149,7 +149,6 @@ public class VentanaPrincipal extends JFrame {
         JLabel lblLogo = new JLabel();
         try {
             ImageIcon ic = new ImageIcon(getClass().getResource("/images/instagramlogoblack.png"));
-            // Dimensiones reales del logo: 280x158. Usamos 168x95 (60% del original)
             lblLogo.setIcon(new ImageIcon(ic.getImage().getScaledInstance(168, 95, Image.SCALE_SMOOTH)));
         } catch (Exception e) {
             lblLogo.setText("Instagram");
@@ -437,7 +436,7 @@ public class VentanaPrincipal extends JFrame {
             JLabel lbl = new JLabel("No hay publicaciones. ¡Sigue a alguien o crea tu primer post!");
             lbl.setForeground(C_TEXT_LIGHT); lbl.setFont(F_REGULAR);
             lbl.setAlignmentX(Component.CENTER_ALIGNMENT);
-            panelContenido.add(Box.createVerticalStrut(200));
+            panelContenido.add(Box.createVerticalStrut(40));
             panelContenido.add(lbl);
         } else {
             for (Publicacion p : posts) {
@@ -445,6 +444,8 @@ public class VentanaPrincipal extends JFrame {
                 panelContenido.add(Box.createVerticalStrut(12));
             }
         }
+
+
 
         add(scroll, BorderLayout.CENTER);
 
@@ -545,8 +546,8 @@ public class VentanaPrincipal extends JFrame {
         lblImg.setBackground(new Color(239, 239, 239)); lblImg.setOpaque(true);
         try {
             if (p.getRutaImagen() != null && !p.getRutaImagen().isEmpty() && new File(p.getRutaImagen()).exists()) {
-                Image img = new ImageIcon(p.getRutaImagen()).getImage().getScaledInstance(anchoImg, altoFinal, Image.SCALE_SMOOTH);
-                lblImg.setIcon(new ImageIcon(img));
+                lblImg.setIcon(new ImageIcon(
+                    new ImageIcon(p.getRutaImagen()).getImage().getScaledInstance(anchoImg, altoFinal, Image.SCALE_SMOOTH)));
             }
         } catch (Exception ignored) {}
         lblImg.setPreferredSize(new Dimension(anchoImg, altoFinal));
@@ -954,14 +955,11 @@ public class VentanaPrincipal extends JFrame {
         // Fix 5: padding izquierdo generoso para que el icono+texto respire
         b.setBorder(BorderFactory.createEmptyBorder(0, 18, 0, 0));
 
-        // Icono (tamaño aumentado a 26px para Fix 5)
+        // Icono directo del mapa — ya está a 26px, no reescalar
         if (key != null) {
             Map<String,ImageIcon> map = active ? iconsBold : iconsNormal;
             if (map.containsKey(key)) {
-                // Re-escalar a 26px para que sea más visible
-                ImageIcon base = map.get(key);
-                Image rescaled = base.getImage().getScaledInstance(26, 26, Image.SCALE_SMOOTH);
-                b.setIcon(new ImageIcon(rescaled));
+                b.setIcon(map.get(key));
                 b.setIconTextGap(12);
             }
         }
@@ -1023,8 +1021,7 @@ public class VentanaPrincipal extends JFrame {
         b.setFont(active ? new Font("Arial", Font.BOLD, 15) : new Font("Arial", Font.PLAIN, 15));
         b.setForeground(C_TEXT);
         Map<String,ImageIcon> iconMap = active ? iconsBold : iconsNormal;
-        if (iconMap.containsKey(key))
-            b.setIcon(new ImageIcon(iconMap.get(key).getImage().getScaledInstance(26,26,Image.SCALE_SMOOTH)));
+        if (iconMap.containsKey(key)) b.setIcon(iconMap.get(key));
         b.addMouseListener(new MouseAdapter() {
             public void mouseEntered(MouseEvent e) { if (!active) b.setBackground(new Color(245,245,245)); }
             public void mouseExited(MouseEvent e)  { b.setBackground(C_WHITE); }
@@ -1059,7 +1056,7 @@ public class VentanaPrincipal extends JFrame {
         info.setBackground(C_BG);
         info.setBorder(BorderFactory.createEmptyBorder(0, 28, 0, 0));
 
-        // Fila 1: username + botones
+        // Fila 1: username (con badge si verificado) + botones
         JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
         row1.setBackground(C_BG);
 
@@ -1164,28 +1161,31 @@ public class VentanaPrincipal extends JFrame {
         } else {
             for (Publicacion p : posts) {
                 JPanel cell = new JPanel(new BorderLayout());
-                // Fix 3: sin fondo gris, imagen directa
                 cell.setBackground(C_BG);
                 cell.setOpaque(false);
+                cell.setCursor(new Cursor(Cursor.HAND_CURSOR));
                 JLabel img = new JLabel();
                 img.setHorizontalAlignment(SwingConstants.CENTER);
                 try {
                     if (p.getRutaImagen() != null && new File(p.getRutaImagen()).exists()) {
-                        img.setIcon(new ImageIcon(new ImageIcon(p.getRutaImagen()).getImage().getScaledInstance(200,200,Image.SCALE_SMOOTH)));
+                        img.setIcon(new ImageIcon(
+                            new ImageIcon(p.getRutaImagen()).getImage().getScaledInstance(200, 200, Image.SCALE_SMOOTH)));
                     }
                 } catch (Exception ignored) {}
+
                 // Hover overlay
                 JPanel overlay = new JPanel() {
                     { setOpaque(false); setVisible(false); }
                     @Override protected void paintComponent(Graphics g) {
-                        g.setColor(new Color(0,0,0,90));
-                        g.fillRect(0,0,getWidth(),getHeight());
+                        g.setColor(new Color(0, 0, 0, 90));
+                        g.fillRect(0, 0, getWidth(), getHeight());
                     }
                 };
                 cell.add(img, BorderLayout.CENTER);
                 cell.addMouseListener(new MouseAdapter() {
                     public void mouseEntered(MouseEvent e) { overlay.setVisible(true); cell.repaint(); }
                     public void mouseExited(MouseEvent e)  { overlay.setVisible(false); cell.repaint(); }
+                    public void mouseClicked(MouseEvent e) { abrirDetallePost(p); }
                 });
                 grid.add(cell);
             }
@@ -1201,13 +1201,254 @@ public class VentanaPrincipal extends JFrame {
         revalidate(); repaint();
     }
 
-    private JPanel statPanel(int n, String label) {
+    // ════════════════════════════════════════════════════════════
+    //  DETALLE DE POST — imagen grande + comentarios scrolleables
+    // ════════════════════════════════════════════════════════════
+    private void abrirDetallePost(Publicacion p) {
+        JDialog d = new JDialog(this, "", true);
+        d.setUndecorated(true);
+        d.setSize(900, 600);
+        d.setLocationRelativeTo(this);
+        d.setBackground(new Color(0, 0, 0, 0));
+
+        // Overlay oscuro en la ventana principal
+        Component oldGlass = getGlassPane();
+        JPanel glass = new JPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                g.setColor(new Color(0, 0, 0, 150));
+                g.fillRect(0, 0, getWidth(), getHeight());
+            }
+        };
+        glass.setOpaque(false);
+        glass.addMouseListener(new MouseAdapter() {});
+        setGlassPane(glass);
+        glass.setVisible(true);
+        d.addWindowListener(new WindowAdapter() {
+            @Override public void windowClosed(WindowEvent e) {
+                glass.setVisible(false);
+                setGlassPane(oldGlass);
+                repaint();
+            }
+        });
+
+        // ── CONTENEDOR PRINCIPAL ──
+        JPanel root = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(C_WHITE);
+                g2.fill(new RoundRectangle2D.Double(0, 0, getWidth(), getHeight(), 12, 12));
+                g2.dispose();
+            }
+        };
+        root.setOpaque(false);
+
+        // ── LADO IZQUIERDO: imagen ──
+        int IMG_W = 520, IMG_H = 600;
+        JPanel imgPanel = new JPanel(new BorderLayout());
+        imgPanel.setBackground(Color.BLACK);
+        imgPanel.setPreferredSize(new Dimension(IMG_W, IMG_H));
+
+        JLabel imgLbl = new JLabel();
+        imgLbl.setHorizontalAlignment(SwingConstants.CENTER);
+        try {
+            File f = new File(p.getRutaImagen());
+            if (f.exists()) {
+                ImageIcon orig = new ImageIcon(p.getRutaImagen());
+                int iw = orig.getIconWidth(), ih = orig.getIconHeight();
+                double scale = Math.min((double) IMG_W / iw, (double) IMG_H / ih);
+                int nw = (int)(iw * scale), nh = (int)(ih * scale);
+                imgLbl.setIcon(new ImageIcon(orig.getImage().getScaledInstance(nw, nh, Image.SCALE_SMOOTH)));
+            }
+        } catch (Exception ignored) {}
+        imgPanel.add(imgLbl, BorderLayout.CENTER);
+
+        // ── LADO DERECHO: header + caption + comentarios + input ──
+        JPanel right = new JPanel(new BorderLayout());
+        right.setBackground(C_WHITE);
+        right.setPreferredSize(new Dimension(380, IMG_H));
+
+        // Header derecho: foto + username + badge + cerrar
+        JPanel rHeader = new JPanel(new BorderLayout());
+        rHeader.setBackground(C_WHITE);
+        rHeader.setBorder(BorderFactory.createCompoundBorder(
+            new MatteBorder(0, 0, 1, 0, C_BORDER),
+            BorderFactory.createEmptyBorder(12, 14, 12, 14)
+        ));
+        JPanel rHeaderLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        rHeaderLeft.setBackground(C_WHITE);
+        rHeaderLeft.add(new JLabel(cargarFotoCircular(p.getAutor(), 32)));
+        JLabel rUserLbl = new JLabel(p.getAutor()); rUserLbl.setFont(F_BOLD); rUserLbl.setForeground(C_TEXT);
+        rHeaderLeft.add(rUserLbl);
+
+        JButton btnCerrar = new JButton();
+        if (iconsNormal.containsKey("Close")) btnCerrar.setIcon(iconsNormal.get("Close"));
+        else { btnCerrar.setText("x"); btnCerrar.setFont(F_SMALL); }
+        btnCerrar.setBorderPainted(false); btnCerrar.setContentAreaFilled(false);
+        btnCerrar.setFocusPainted(false); btnCerrar.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnCerrar.addActionListener(e -> d.dispose());
+
+        rHeader.add(rHeaderLeft, BorderLayout.WEST);
+        rHeader.add(btnCerrar,   BorderLayout.EAST);
+        right.add(rHeader, BorderLayout.NORTH);
+
+        // Área scrolleable: caption + comentarios
+        JPanel scrollContent = new JPanel();
+        scrollContent.setLayout(new BoxLayout(scrollContent, BoxLayout.Y_AXIS));
+        scrollContent.setBackground(C_WHITE);
+
+        // Caption del post
+        if (p.getContenido() != null && !p.getContenido().isEmpty()) {
+            JPanel captionRow = new JPanel(new BorderLayout());
+            captionRow.setBackground(C_WHITE);
+            captionRow.setBorder(BorderFactory.createEmptyBorder(12, 14, 10, 14));
+            JPanel captionLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+            captionLeft.setBackground(C_WHITE);
+            captionLeft.add(new JLabel(cargarFotoCircular(p.getAutor(), 28)));
+            JLabel captionTxt = new JLabel("<html><b>" + p.getAutor() + "</b> " + p.getContenido() + "</html>");
+            captionTxt.setFont(F_REGULAR); captionTxt.setForeground(C_TEXT);
+            captionLeft.add(captionTxt);
+            captionRow.add(captionLeft, BorderLayout.CENTER);
+            scrollContent.add(captionRow);
+            JSeparator sep = new JSeparator();
+            sep.setForeground(C_BORDER); sep.setBackground(C_BORDER);
+            scrollContent.add(sep);
+        }
+
+        // Comentarios existentes
+        ArrayList<String> comentarios = sistema.getComentarios(p.getAutor(), p.getFecha().toString());
+        for (String c : comentarios) {
+            // formato "usuario: texto"
+            String[] parts = c.split(":", 2);
+            String comUser = parts.length > 0 ? parts[0].trim() : "?";
+            String comText = parts.length > 1 ? parts[1].trim() : c;
+
+            JPanel comRow = new JPanel(new BorderLayout());
+            comRow.setBackground(C_WHITE);
+            comRow.setBorder(BorderFactory.createEmptyBorder(10, 14, 8, 14));
+            JPanel comLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+            comLeft.setBackground(C_WHITE);
+            comLeft.add(new JLabel(cargarFotoCircular(comUser, 28)));
+            JLabel comLbl = new JLabel("<html><b>" + comUser + "</b> " + comText + "</html>");
+            comLbl.setFont(F_REGULAR); comLbl.setForeground(C_TEXT);
+            comLeft.add(comLbl);
+            comRow.add(comLeft, BorderLayout.CENTER);
+            scrollContent.add(comRow);
+        }
+
+        JScrollPane scrollPane = styledScroll(scrollContent, false);
+        scrollPane.setBorder(null);
+        right.add(scrollPane, BorderLayout.CENTER);
+
+        // Footer: likes + input comentario
+        JPanel footer = new JPanel(new BorderLayout());
+        footer.setBackground(C_WHITE);
+        footer.setBorder(new MatteBorder(1, 0, 0, 0, C_BORDER));
+
+        // Fila de likes
+        JPanel likeRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 8));
+        likeRow.setBackground(C_WHITE);
+
+        int[] likeCount = { sistema.getCantidadLikes(p.getAutor(), p.getFecha().toString()) };
+        boolean[] liked  = { sistema.yaDioLike(p.getAutor(), p.getFecha().toString()) };
+
+        JButton btnLike = new JButton();
+        if (liked[0]) {
+            if (iconsBold.containsKey("Like"))   btnLike.setIcon(iconsBold.get("Like"));
+            else btnLike.setText("<3");
+        } else {
+            if (iconsNormal.containsKey("Like")) btnLike.setIcon(iconsNormal.get("Like"));
+            else btnLike.setText("o");
+        }
+        btnLike.setBorderPainted(false); btnLike.setContentAreaFilled(false);
+        btnLike.setFocusPainted(false); btnLike.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        JLabel lblLikes = new JLabel(likeCount[0] + " Me gusta");
+        lblLikes.setFont(F_BOLD); lblLikes.setForeground(C_TEXT);
+
+        btnLike.addActionListener(e -> {
+            sistema.toggleLike(p.getAutor(), p.getFecha().toString(), p.getRutaImagen());
+            liked[0] = sistema.yaDioLike(p.getAutor(), p.getFecha().toString());
+            likeCount[0] = sistema.getCantidadLikes(p.getAutor(), p.getFecha().toString());
+            if (liked[0]) {
+                if (iconsBold.containsKey("Like")) btnLike.setIcon(iconsBold.get("Like")); else btnLike.setText("<3");
+            } else {
+                if (iconsNormal.containsKey("Like")) btnLike.setIcon(iconsNormal.get("Like")); else btnLike.setText("o");
+            }
+            lblLikes.setText(likeCount[0] + " Me gusta");
+        });
+
+        likeRow.add(btnLike);
+        likeRow.add(lblLikes);
+
+        // Input de comentario
+        JPanel inputRow = new JPanel(new BorderLayout(6, 0));
+        inputRow.setBackground(C_WHITE);
+        inputRow.setBorder(BorderFactory.createEmptyBorder(6, 14, 10, 14));
+        JTextField txtCom = new JTextField();
+        txtCom.setFont(F_REGULAR); txtCom.setBackground(C_FIELD);
+        txtCom.setBorder(BorderFactory.createCompoundBorder(
+            new LineBorder(C_BORDER, 1, true),
+            BorderFactory.createEmptyBorder(8, 12, 8, 12)
+        ));
+        txtCom.putClientProperty("JTextField.placeholderText", "Agrega un comentario...");
+
+        JButton btnEnviarCom = buildPrimaryBtn("Publicar");
+        btnEnviarCom.setPreferredSize(new Dimension(80, 36));
+        btnEnviarCom.setFont(new Font("Arial", Font.BOLD, 12));
+
+        ActionListener enviarComentario = e -> {
+            String texto = txtCom.getText().trim();
+            if (texto.isEmpty()) return;
+            sistema.agregarComentario(p.getAutor(), p.getFecha().toString(), texto);
+            // Agregar visualmente al scroll sin reabrir
+            JPanel newRow = new JPanel(new BorderLayout());
+            newRow.setBackground(C_WHITE);
+            newRow.setBorder(BorderFactory.createEmptyBorder(10, 14, 8, 14));
+            JPanel nl = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+            nl.setBackground(C_WHITE);
+            nl.add(new JLabel(cargarFotoCircular(sistema.getUsuarioActual().getUsername(), 28)));
+            JLabel nl2 = new JLabel("<html><b>" + sistema.getUsuarioActual().getUsername() + "</b> " + texto + "</html>");
+            nl2.setFont(F_REGULAR); nl2.setForeground(C_TEXT);
+            nl.add(nl2);
+            newRow.add(nl, BorderLayout.CENTER);
+            scrollContent.add(newRow);
+            scrollContent.revalidate(); scrollContent.repaint();
+            txtCom.setText("");
+            // Scroll al fondo para ver el comentario nuevo
+            SwingUtilities.invokeLater(() -> scrollPane.getVerticalScrollBar()
+                .setValue(scrollPane.getVerticalScrollBar().getMaximum()));
+        };
+        btnEnviarCom.addActionListener(enviarComentario);
+        txtCom.addActionListener(enviarComentario);
+
+        inputRow.add(txtCom, BorderLayout.CENTER);
+        inputRow.add(btnEnviarCom, BorderLayout.EAST);
+
+        footer.add(likeRow,   BorderLayout.NORTH);
+        footer.add(inputRow,  BorderLayout.SOUTH);
+        right.add(footer, BorderLayout.SOUTH);
+
+        // ── ENSAMBLAR ──
+        root.add(imgPanel, BorderLayout.WEST);
+        root.add(right,    BorderLayout.CENTER);
+
+        d.setContentPane(root);
+        d.setVisible(true);
+    }
+
+    private JPanel buildStatRow(int n, String label) {
         JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         p.setBackground(C_BG);
         JLabel num = new JLabel(String.valueOf(n)); num.setFont(F_BOLD); num.setForeground(C_TEXT);
         JLabel txt = new JLabel(label); txt.setFont(F_REGULAR); txt.setForeground(C_TEXT);
         p.add(num); p.add(txt);
         return p;
+    }
+
+    /** Alias de buildStatRow — usado en cargarVistaPerfil para mostrar stats */
+    private JPanel statPanel(int n, String label) {
+        return buildStatRow(n, label);
     }
 
     // ════════════════════════════════════════════════════════════
@@ -1250,6 +1491,8 @@ public class VentanaPrincipal extends JFrame {
         results.setLayout(new BoxLayout(results, BoxLayout.Y_AXIS));
         results.setBackground(C_BG);
         results.setBorder(BorderFactory.createEmptyBorder(20,0,0,0));
+
+
         main.add(styledScroll(results), BorderLayout.CENTER);
 
         add(main, BorderLayout.CENTER);
@@ -1275,6 +1518,7 @@ public class VentanaPrincipal extends JFrame {
         revalidate(); repaint();
     }
 
+
     private JPanel buildUserRow(Usuario u) {
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(C_WHITE);
@@ -1290,10 +1534,11 @@ public class VentanaPrincipal extends JFrame {
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         left.setBackground(C_WHITE);
 
-        // Fix 2: foto circular a la par del nombre
         JLabel foto = new JLabel(); foto.setIcon(cargarFotoCircular(u.getUsername(), 38));
+
         JLabel nombre = new JLabel(u.getUsername()); nombre.setFont(F_BOLD); nombre.setForeground(C_TEXT);
-        JLabel nomReal = new JLabel(u.getNombreCompleto()); nomReal.setFont(F_SMALL); nomReal.setForeground(C_TEXT_LIGHT);
+        JLabel nomReal = new JLabel(u.getNombreCompleto());
+        nomReal.setFont(F_SMALL); nomReal.setForeground(C_TEXT_LIGHT);
 
         JPanel textos = new JPanel(); textos.setLayout(new BoxLayout(textos, BoxLayout.Y_AXIS));
         textos.setBackground(C_WHITE);
@@ -1658,8 +1903,7 @@ public class VentanaPrincipal extends JFrame {
                 try {
                     File f = new File(r);
                     if (f.exists()) {
-                        btnS.setIcon(new ImageIcon(
-                            new ImageIcon(r).getImage().getScaledInstance(68, 68, Image.SCALE_SMOOTH)));
+                        btnS.setIcon(new ImageIcon(new ImageIcon(r).getImage().getScaledInstance(68, 68, Image.SCALE_SMOOTH)));
                     } else { btnS.setText("?"); }
                 } catch (Exception ignored) { btnS.setText("?"); }
                 btnS.addActionListener(se -> {
@@ -1723,8 +1967,7 @@ public class VentanaPrincipal extends JFrame {
                 try {
                     File f = new File(m.getContenido());
                     if (f.exists()) img.setIcon(new ImageIcon(
-                        new ImageIcon(m.getContenido()).getImage()
-                            .getScaledInstance(96, 96, Image.SCALE_SMOOTH)));
+                        new ImageIcon(m.getContenido()).getImage().getScaledInstance(96, 96, Image.SCALE_SMOOTH)));
                     else img.setText("[Sticker]");
                 } catch (Exception ignored) { img.setText("[Sticker]"); }
                 bubble.add(img, BorderLayout.CENTER);
@@ -1764,8 +2007,7 @@ public class VentanaPrincipal extends JFrame {
                     try {
                         File imgF = new File(rutaImgPost);
                         if (imgF.exists()) {
-                            Image scaled = new ImageIcon(rutaImgPost).getImage()
-                                .getScaledInstance(240, 140, Image.SCALE_SMOOTH);
+                            Image scaled = new ImageIcon(rutaImgPost).getImage().getScaledInstance(240, 140, Image.SCALE_SMOOTH);
                             imgL.setIcon(new ImageIcon(scaled));
                         } else {
                             imgL.setText("Sin imagen");
@@ -1807,8 +2049,7 @@ public class VentanaPrincipal extends JFrame {
                                 dd.setLocationRelativeTo(this);
                                 dd.setLayout(new BorderLayout());
                                 dd.getContentPane().setBackground(C_WHITE);
-                                JLabel bigImg = new JLabel(new ImageIcon(
-                                    new ImageIcon(rutaFinal).getImage().getScaledInstance(600, 600, Image.SCALE_SMOOTH)));
+                                JLabel bigImg = new JLabel(new ImageIcon(new ImageIcon(rutaFinal).getImage().getScaledInstance(600, 600, Image.SCALE_SMOOTH)));
                                 bigImg.setHorizontalAlignment(SwingConstants.CENTER);
                                 dd.add(new JScrollPane(bigImg), BorderLayout.CENTER);
                                 dd.setVisible(true);
@@ -2095,8 +2336,7 @@ public class VentanaPrincipal extends JFrame {
                     if (imgF.exists()) {
                         try {
                             JLabel thumb = new JLabel(new ImageIcon(
-                                new ImageIcon(p.getRutaImagen()).getImage()
-                                    .getScaledInstance(44, 44, Image.SCALE_SMOOTH)));
+                                new ImageIcon(p.getRutaImagen()).getImage().getScaledInstance(44, 44, Image.SCALE_SMOOTH)));
                             thumb.setBorder(new LineBorder(C_BORDER, 1));
                             row.add(thumb, BorderLayout.EAST);
                         } catch (Exception ignored) {}
@@ -2350,11 +2590,12 @@ public class VentanaPrincipal extends JFrame {
         BufferedImage out = new BufferedImage(d, d, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2 = out.createGraphics();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g2.setClip(new Ellipse2D.Double(0,0,d,d));
-        g2.drawImage(src.getImage().getScaledInstance(d,d,Image.SCALE_SMOOTH),0,0,null);
+        g2.setClip(new Ellipse2D.Double(0, 0, d, d));
+        g2.drawImage(src.getImage().getScaledInstance(d, d, Image.SCALE_SMOOTH), 0, 0, null);
         g2.setClip(null);
-        g2.setColor(C_BORDER); g2.setStroke(new BasicStroke(1f));
-        g2.drawOval(0,0,d-1,d-1);
+        g2.setColor(C_BORDER);
+        g2.setStroke(new BasicStroke(1f));
+        g2.drawOval(0, 0, d - 1, d - 1);
         g2.dispose();
         return new ImageIcon(out);
     }
@@ -2556,7 +2797,7 @@ public class VentanaPrincipal extends JFrame {
     private void resetPanelBorder(JPanel p)   { p.setBorder(new LineBorder(C_BORDER,1,true)); }
     private void resetSpinnerBorder(JSpinner s){ s.setBorder(new LineBorder(C_BORDER,1,true)); }
 
-    // ── EVENTOS HELPER ──────────────────────────────────────────
+    // ── EVENTOS HELPER ──────────────────────────────────────
     private MouseAdapter click(Runnable r) {
         return new MouseAdapter() { public void mouseClicked(MouseEvent e) { r.run(); } };
     }

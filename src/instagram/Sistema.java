@@ -393,8 +393,10 @@ public class Sistema implements Interaccion, Mensajeria {
         ArrayList<Publicacion> timeline = new ArrayList<>();
         if (usuarioActual == null) return timeline;
 
+        // Mis propios posts
         leerPublicacionesUsuario(usuarioActual.getUsername(), timeline);
 
+        // Posts de cuentas que sigo
         File fFollowing = new File(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins");
         if (fFollowing.exists()) {
             try (Scanner sc = new Scanner(fFollowing)) {
@@ -621,6 +623,23 @@ public class Sistema implements Interaccion, Mensajeria {
     }
 
     // ── NOTIFICACIONES DE LIKES ─────────────────────────────────
+    /**
+     * Cuenta cuántos likes tiene un post específico.
+     */
+    public int getCantidadLikes(String autorPost, String fechaPost) {
+        String ruta = RUTA_RAIZ + "/" + autorPost + "/likes.ins";
+        File f = new File(ruta);
+        if (!f.exists()) return 0;
+        int count = 0;
+        String prefijo = autorPost + "|" + fechaPost + "|";
+        try (Scanner sc = new Scanner(f)) {
+            while (sc.hasNextLine()) {
+                if (sc.nextLine().trim().startsWith(prefijo)) count++;
+            }
+        } catch (Exception ignored) {}
+        return count;
+    }
+
     /**
      * Devuelve notificaciones de likes con formato:
      * autor|fecha|quien|rutaImagen  (4 campos, imagen puede estar vacía)
@@ -1143,7 +1162,18 @@ public class Sistema implements Interaccion, Mensajeria {
             String ruta = RUTA_RAIZ + "/" + username + "/imagenes";
             new File(ruta).mkdirs();
             String rutaFinal = ruta + "/" + nombreArchivo + ".jpg";
-            javax.imageio.ImageIO.write(final_, "jpg", new File(rutaFinal));
+
+            // Guardar con calidad alta (0.95) en lugar del default (~0.75)
+            javax.imageio.ImageWriter writer = javax.imageio.ImageIO
+                .getImageWritersByFormatName("jpg").next();
+            javax.imageio.ImageWriteParam param = writer.getDefaultWriteParam();
+            param.setCompressionMode(javax.imageio.ImageWriteParam.MODE_EXPLICIT);
+            param.setCompressionQuality(0.95f);
+            javax.imageio.stream.ImageOutputStream ios =
+                javax.imageio.ImageIO.createImageOutputStream(new File(rutaFinal));
+            writer.setOutput(ios);
+            writer.write(null, new javax.imageio.IIOImage(final_, null, null), param);
+            writer.dispose(); ios.close();
             return rutaFinal;
         } catch (Exception e) { e.printStackTrace(); return null; }
     }
@@ -1268,6 +1298,10 @@ public class Sistema implements Interaccion, Mensajeria {
      * Si el archivo no existe o está corrupto, devuelve lista vacía.
      * Demuestra uso de ObjectInputStream y manejo de excepciones.
      */
+    // ══════════════════════════════════════════════════════════════
+    //  DESCUBRIMIENTO DE CONTENIDO
+    // ══════════════════════════════════════════════════════════════
+
     @SuppressWarnings("unchecked")
     public ArrayList<Publicacion> leerPublicacionesBinario(String username) {
         String rutaBin = RUTA_RAIZ + "/" + username + "/backup_posts.bin";
