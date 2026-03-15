@@ -5,7 +5,9 @@
         <group>
             <file>file:/C:/ProyectosJava/Instagram/src/instagram/Sistema.java</file>
             <file>file:/C:/ProyectosJava/Instagram/src/instagram/Main.java</file>
+            <file>file:/C:/ProyectosJava/Instagram/src/instagram/Usuario.java</file>
             <file>file:/C:/ProyectosJava/Instagram/src/gui/VentanaPrincipal.java</file>
+            <file>file:/C:/ProyectosJava/Instagram/src/gui/InstaDialog.java</file>
         </group>
     </open-files>
 </project-private>
