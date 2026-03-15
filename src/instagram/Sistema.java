@@ -44,21 +44,20 @@ public class Sistema implements Interaccion, Mensajeria {
 
     private Usuario usuarioActual;
 
-    // ── LISTA ENLAZADA de usuarios (NodoUsuario) en memoria ─────
+    // ── LISTA ENLAZADA de usuarios en memoria ────────────────────
     private ListaUsuarios cacheUsuarios = new ListaUsuarios();
     private boolean cacheValida = false;
 
     public Sistema() {
         verificarEstructura();
-        InicializadorCuentasDefault.inicializar();   // cuentas default al primer arranque
+        InicializadorCuentasDefault.inicializar();
     }
 
     public Usuario getUsuarioActual() { return usuarioActual; }
 
     // ══════════════════════════════════════════════════════════════
-    //  LISTA ENLAZADA — caché de usuarios en memoria
+    //  CACHÉ DE USUARIOS
     // ══════════════════════════════════════════════════════════════
-
     private void cargarCacheUsuarios() {
         if (cacheValida) return;
         cacheUsuarios.limpiar();
@@ -81,40 +80,53 @@ public class Sistema implements Interaccion, Mensajeria {
         }
     }
 
-    private void invalidarCache() {
-        cacheValida = false;
+    private void invalidarCache() { cacheValida = false; }
+
+    /**
+     * Permite que la GUI fuerce recarga de la caché.
+     * Necesario tras reactivar una cuenta para que su contenido
+     * vuelva a ser visible inmediatamente.
+     */
+    public void invalidarCachePublica() { invalidarCache(); }
+
+    // ══════════════════════════════════════════════════════════════
+    //  IMPLEMENTACIÓN Interaccion
+    // ══════════════════════════════════════════════════════════════
+    @Override public ArrayList buscar(String criterio) { return buscarUsuarios(criterio); }
+    @Override public boolean   existe(String username)  { return existeUsername(username); }
+
+    @Override
+    public boolean seguirUsuario(String objetivo) {
+        if (usuarioActual == null || objetivo.equals(usuarioActual.getUsername())) return false;
+        Usuario u = buscarUsuario(objetivo);
+        if (u == null) return false;
+        if (u.getTipoCuenta() == TipoCuenta.PUBLICA) {
+            String myFollowing    = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins";
+            String theirFollowers = RUTA_RAIZ + "/" + objetivo + "/followers.ins";
+            if (verificarEnArchivo(myFollowing, objetivo)) return false;
+            appendLine(myFollowing, objetivo);
+            appendLine(theirFollowers, usuarioActual.getUsername());
+            notificar(objetivo, "SEGUIDOR|" + usuarioActual.getUsername() + "|" + LocalDate.now());
+            return true;
+        } else {
+            return enviarSolicitud(objetivo);
+        }
+    }
+
+    @Override
+    public boolean dejarDeSeguir(String objetivo) {
+        if (usuarioActual == null) return false;
+        eliminarLineaDeArchivo(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins", objetivo);
+        eliminarLineaDeArchivo(RUTA_RAIZ + "/" + objetivo + "/followers.ins", usuarioActual.getUsername());
+        return true;
     }
 
     // ══════════════════════════════════════════════════════════════
-    //  IMPLEMENTACIÓN DE Interaccion
+    //  IMPLEMENTACIÓN Mensajeria
     // ══════════════════════════════════════════════════════════════
-
-    @Override
-    public ArrayList buscar(String criterio) {
-        return buscarUsuarios(criterio);
-    }
-
-    @Override
-    public boolean existe(String username) {
-        return existeUsername(username);
-    }
-
-    // ══════════════════════════════════════════════════════════════
-    //  IMPLEMENTACIÓN DE Mensajeria
-    // ══════════════════════════════════════════════════════════════
-
-    @Override
-    public boolean enviarMensaje(Mensaje m) {
-        return guardarMensaje(m);
-    }
-
-    @Override
-    public void notificar(String usernameDestino, String mensaje) {
-        guardarNotificacion(usernameDestino, mensaje);
-    }
-
-    @Override
-    public int getTotalNotificacionesPendientes() {
+    @Override public boolean enviarMensaje(Mensaje m) { return guardarMensaje(m); }
+    @Override public void    notificar(String dest, String msg) { guardarNotificacion(dest, msg); }
+    @Override public int     getTotalNotificacionesPendientes() {
         if (usuarioActual == null) return 0;
         return getNotificacionesGenerales().size();
     }
@@ -126,7 +138,6 @@ public class Sistema implements Interaccion, Mensajeria {
         new File(RUTA_RAIZ).mkdirs();
         new File(RUTA_RAIZ + "/stickers_globales").mkdirs();
         crearStickersPorDefecto();
-
         File users = new File(RUTA_USERS);
         try { if (!users.exists()) users.createNewFile(); }
         catch (IOException e) { e.printStackTrace(); }
@@ -135,24 +146,17 @@ public class Sistema implements Interaccion, Mensajeria {
     private void crearStickersPorDefecto() {
         String carpeta = RUTA_RAIZ + "/stickers_globales";
         new File(carpeta).mkdirs();
-
         String[][] stickers = {
-            {"feliz.png",    "happy.png"},
-            {"triste.png",   "crying.png"},
-            {"corazon.png",  "hearteyes.png"},
-            {"risa.png",     "tearsofjoy.png"},
-            {"aplauso.png",  "thumbup.png"}
+            {"feliz.png","happy.png"}, {"triste.png","crying.png"},
+            {"corazon.png","hearteyes.png"}, {"risa.png","tearsofjoy.png"},
+            {"aplauso.png","thumbup.png"}
         };
-
         for (String[] par : stickers) {
             File dest = new File(carpeta + "/" + par[0]);
             if (!dest.exists()) {
                 try (InputStream is = getClass().getResourceAsStream("/images/" + par[1])) {
                     if (is != null)
-                        java.nio.file.Files.copy(is, dest.toPath(),
-                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                    else
-                        System.err.println("Recurso no encontrado: /images/" + par[1]);
+                        java.nio.file.Files.copy(is, dest.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 } catch (IOException e) { e.printStackTrace(); }
             }
         }
@@ -164,42 +168,30 @@ public class Sistema implements Interaccion, Mensajeria {
     public boolean registrarUsuario(String username, String password, String nombreCompleto,
                                     char genero, int edad, String fotoPerfil, TipoCuenta tipoCuenta) {
         if (existeUsername(username)) return false;
-
         Usuario nuevo = new Usuario(username, password, nombreCompleto, genero, edad,
                 fotoPerfil, LocalDate.now(), tipoCuenta, EstadoCuenta.ACTIVO);
-
         try (FileWriter fw = new FileWriter(RUTA_USERS, true)) {
-            fw.write(nuevo.getUsername() + "|"
-                    + nuevo.getPassword() + "|"
-                    + nuevo.getNombreCompleto() + "|"
-                    + nuevo.getGenero() + "|"
-                    + nuevo.getEdad() + "|"
-                    + nuevo.getFotoPerfil() + "|"
+            fw.write(nuevo.getUsername() + "|" + nuevo.getPassword() + "|"
+                    + nuevo.getNombreCompleto() + "|" + nuevo.getGenero() + "|"
+                    + nuevo.getEdad() + "|" + nuevo.getFotoPerfil() + "|"
                     + nuevo.getFechaRegistro().format(DateTimeFormatter.ISO_LOCAL_DATE) + "|"
-                    + nuevo.getTipoCuenta().name() + "|"
-                    + nuevo.getEstadoCuenta().name() + "\n");
+                    + nuevo.getTipoCuenta().name() + "|" + nuevo.getEstadoCuenta().name() + "\n");
             crearEstructuraUsuario(username);
             invalidarCache();
             return true;
-        } catch (IOException e) {
-            e.printStackTrace();
-            return false;
-        }
+        } catch (IOException e) { e.printStackTrace(); return false; }
     }
 
     public boolean login(String username, String password) {
         if (sesionActiva(username)) return false;
-
         try (Scanner sc = new Scanner(new File(RUTA_USERS))) {
             while (sc.hasNextLine()) {
                 String linea = sc.nextLine().trim();
                 if (linea.isEmpty()) continue;
                 String[] d = linea.split("\\|");
                 if (d.length < 9) continue;
-
                 if (d[0].equals(username) && d[1].equals(password)) {
                     if (EstadoCuenta.valueOf(d[8]) == EstadoCuenta.DESACTIVADO) return false;
-
                     usuarioActual = new Usuario(username, password, d[2], d[3].charAt(0),
                             Integer.parseInt(d[4]), d[5], LocalDate.parse(d[6]),
                             TipoCuenta.valueOf(d[7]), EstadoCuenta.valueOf(d[8]));
@@ -207,51 +199,32 @@ public class Sistema implements Interaccion, Mensajeria {
                     return true;
                 }
             }
-        } catch (FileNotFoundException e) {
-            System.out.println("Archivo users.ins no encontrado.");
-        }
+        } catch (FileNotFoundException e) { System.out.println("users.ins no encontrado."); }
         return false;
     }
 
-    public void logout() {
-        eliminarBloqueoSesion();
-        usuarioActual = null;
-    }
+    public void logout() { eliminarBloqueoSesion(); usuarioActual = null; }
 
     // ══════════════════════════════════════════════════════════════
-    //  ESTRUCTURA DE ARCHIVOS POR USUARIO
+    //  ESTRUCTURA POR USUARIO
     // ══════════════════════════════════════════════════════════════
     private void crearEstructuraUsuario(String username) {
         String base = RUTA_RAIZ + "/" + username;
         new File(base).mkdir();
-
-        String[] archivos = {
-            "followers.ins",
-            "following.ins",
-            "insta.ins",
-            "inbox.ins",
-            "stickers.ins",
-            "solicitudes.ins",
-            "likes.ins",
-            "comments.ins",
-            "notifications.ins"
-        };
-
-        for (String archivo : archivos) {
-            File f = new File(base + "/" + archivo);
-            try { if (!f.exists()) f.createNewFile(); }
-            catch (IOException e) { e.printStackTrace(); }
+        String[] archivos = { "followers.ins","following.ins","insta.ins","inbox.ins",
+            "stickers.ins","solicitudes.ins","likes.ins","comments.ins","notifications.ins" };
+        for (String a : archivos) {
+            File f = new File(base + "/" + a);
+            try { if (!f.exists()) f.createNewFile(); } catch (IOException e) { e.printStackTrace(); }
         }
-
         new File(base + "/imagenes").mkdir();
         new File(base + "/stickers_personales").mkdir();
         new File(base + "/folders_personales").mkdir();
     }
 
     // ══════════════════════════════════════════════════════════════
-    //  BÚSQUEDA / VERIFICACIÓN — usa ListaUsuarios (NodoUsuario)
+    //  BÚSQUEDA — usa ListaUsuarios (recursividad)
     // ══════════════════════════════════════════════════════════════
-
     public boolean existeUsername(String username) {
         cargarCacheUsuarios();
         return cacheUsuarios.contiene(username);
@@ -274,65 +247,47 @@ public class Sistema implements Interaccion, Mensajeria {
     // ══════════════════════════════════════════════════════════════
     public boolean crearPublicacion(String contenido, String rutaImagen,
                                     String hashtags, String menciones) {
-        if (usuarioActual == null) return false;
-        if (contenido.length() > 220) return false;
-
+        if (usuarioActual == null || contenido.length() > 220) return false;
         PublicacionFoto nueva = new PublicacionFoto(
                 usuarioActual.getUsername(), contenido, rutaImagen, hashtags, menciones);
-
         String ruta = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/insta.ins";
         try (FileWriter fw = new FileWriter(ruta, true)) {
             fw.write(nueva.toFileString() + "\n");
-
             if (menciones != null && !menciones.isEmpty()) {
                 for (String m : menciones.split(" ")) {
                     if (m.startsWith("@")) {
-                        String mencionado = m.substring(1);
-                        if (existeUsername(mencionado))
-                            notificar(mencionado,
-                                "MENCION|" + usuarioActual.getUsername()
+                        String men = m.substring(1);
+                        if (existeUsername(men))
+                            notificar(men, "MENCION|" + usuarioActual.getUsername()
                                 + "|" + contenido + "|" + LocalDate.now());
                     }
                 }
             }
-
             guardarPublicacionBinario(nueva);
             return true;
-        } catch (IOException e) {
-            e.printStackTrace();
-            return false;
-        }
+        } catch (IOException e) { e.printStackTrace(); return false; }
     }
 
     public boolean eliminarPublicacion(Publicacion p) {
-        if (usuarioActual == null || !p.getAutor().equals(usuarioActual.getUsername()))
-            return false;
-
+        if (usuarioActual == null || !p.getAutor().equals(usuarioActual.getUsername())) return false;
         String rutaInsta = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/insta.ins";
-        File archivo = new File(rutaInsta);
         ArrayList<String> restantes = new ArrayList<>();
         boolean encontrado = false;
-
-        try (Scanner sc = new Scanner(archivo)) {
+        try (Scanner sc = new Scanner(new File(rutaInsta))) {
             while (sc.hasNextLine()) {
                 String linea = sc.nextLine();
                 Publicacion temp = Publicacion.fromFileString(linea);
-                if (temp != null
-                        && temp.getAutor().equals(p.getAutor())
+                if (temp != null && temp.getAutor().equals(p.getAutor())
                         && temp.getFecha().equals(p.getFecha())
                         && temp.getHora().equals(p.getHora())) {
                     encontrado = true;
-                } else {
-                    restantes.add(linea);
-                }
+                } else { restantes.add(linea); }
             }
         } catch (Exception e) { e.printStackTrace(); return false; }
-
         if (encontrado) {
             try (FileWriter fw = new FileWriter(rutaInsta)) {
                 for (String l : restantes) fw.write(l + "\n");
             } catch (IOException e) { e.printStackTrace(); return false; }
-
             if (p.getRutaImagen() != null && !p.getRutaImagen().isEmpty())
                 new File(p.getRutaImagen()).delete();
             return true;
@@ -345,10 +300,8 @@ public class Sistema implements Interaccion, Mensajeria {
         ArrayList<Publicacion> timeline = new ArrayList<>();
         if (usuarioActual == null) return timeline;
 
-        // Mis propios posts
         leerPublicacionesUsuario(usuarioActual.getUsername(), timeline);
 
-        // Posts de cuentas que sigo — detectar si sigue a alguien "real" (no default)
         boolean sigueAAlguienReal = false;
         File fFollowing = new File(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins");
 
@@ -358,26 +311,19 @@ public class Sistema implements Interaccion, Mensajeria {
                     String u = sc.nextLine().trim();
                     if (u.isEmpty()) continue;
                     leerPublicacionesUsuario(u, timeline);
-                    // Verificar si es una cuenta default
                     boolean esDefault = false;
-                    for (String def : InicializadorCuentasDefault.USERNAMES_DEFAULT) {
+                    for (String def : InicializadorCuentasDefault.USERNAMES_DEFAULT)
                         if (def.equals(u)) { esDefault = true; break; }
-                    }
                     if (!esDefault) sigueAAlguienReal = true;
                 }
             } catch (Exception e) { e.printStackTrace(); }
         }
 
-        // Si el usuario no sigue a nadie real todavía, inyectar posts de las
-        // 3 cuentas default para que el feed no aparezca vacío
         if (!sigueAAlguienReal) {
             for (String def : InicializadorCuentasDefault.USERNAMES_DEFAULT) {
-                // Solo agregar si no los sigue ya (para evitar duplicados)
                 boolean yaLoSigue = fFollowing.exists()
                     && verificarEnArchivo(fFollowing.getPath(), def);
-                if (!yaLoSigue) {
-                    leerPublicacionesUsuario(def, timeline);
-                }
+                if (!yaLoSigue) leerPublicacionesUsuario(def, timeline);
             }
         }
 
@@ -387,6 +333,11 @@ public class Sistema implements Interaccion, Mensajeria {
     }
 
     private void leerPublicacionesUsuario(String username, ArrayList<Publicacion> lista) {
+        // No mostrar publicaciones de cuentas desactivadas (excepto la propia)
+        if (usuarioActual != null && !username.equals(usuarioActual.getUsername())) {
+            Usuario u = buscarUsuario(username);
+            if (u != null && u.getEstadoCuenta() == EstadoCuenta.DESACTIVADO) return;
+        }
         File archivo = new File(RUTA_RAIZ + "/" + username + "/insta.ins");
         if (!archivo.exists()) return;
         try (Scanner sc = new Scanner(archivo)) {
@@ -403,7 +354,13 @@ public class Sistema implements Interaccion, Mensajeria {
     public ArrayList<Publicacion> getPublicacionesDeUsuario(String username) {
         ArrayList<Publicacion> lista = new ArrayList<>();
         Usuario u = buscarUsuario(username);
-        if (u == null || u.getEstadoCuenta() == EstadoCuenta.DESACTIVADO) return lista;
+        if (u == null) return lista;
+
+        // FIX: cuentas desactivadas solo ocultan contenido a otros, no al dueño
+        if (u.getEstadoCuenta() == EstadoCuenta.DESACTIVADO) {
+            boolean esMio = usuarioActual != null && username.equals(usuarioActual.getUsername());
+            if (!esMio) return lista;
+        }
 
         if (u.getTipoCuenta() == TipoCuenta.PRIVADA) {
             if (usuarioActual == null || !usuarioActual.getUsername().equals(username)) {
@@ -425,22 +382,15 @@ public class Sistema implements Interaccion, Mensajeria {
                 }
             } catch (Exception e) { e.printStackTrace(); }
         }
-
         lista.sort(Comparator.comparing(Publicacion::getFecha)
                 .thenComparing(Publicacion::getHora).reversed());
         return lista;
     }
 
     // ── ESTADÍSTICAS ────────────────────────────────────────────
-    public int getCantidadPosts(String username) {
-        return contarLineas(RUTA_RAIZ + "/" + username + "/insta.ins");
-    }
-    public int getCantidadFollowers(String username) {
-        return contarLineas(RUTA_RAIZ + "/" + username + "/followers.ins");
-    }
-    public int getCantidadFollowing(String username) {
-        return contarLineas(RUTA_RAIZ + "/" + username + "/following.ins");
-    }
+    public int getCantidadPosts(String username)     { return contarLineas(RUTA_RAIZ + "/" + username + "/insta.ins"); }
+    public int getCantidadFollowers(String username) { return contarLineas(RUTA_RAIZ + "/" + username + "/followers.ins"); }
+    public int getCantidadFollowing(String username) { return contarLineas(RUTA_RAIZ + "/" + username + "/following.ins"); }
 
     // ══════════════════════════════════════════════════════════════
     //  FOLLOWS Y SOLICITUDES
@@ -453,34 +403,6 @@ public class Sistema implements Interaccion, Mensajeria {
     public boolean solicitudPendiente(String objetivo) {
         if (usuarioActual == null) return false;
         return verificarEnArchivo(RUTA_RAIZ + "/" + objetivo + "/solicitudes.ins", usuarioActual.getUsername());
-    }
-
-    @Override
-    public boolean seguirUsuario(String objetivo) {
-        if (usuarioActual == null || objetivo.equals(usuarioActual.getUsername())) return false;
-        Usuario u = buscarUsuario(objetivo);
-        if (u == null) return false;
-
-        if (u.getTipoCuenta() == TipoCuenta.PUBLICA) {
-            String myFollowing    = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins";
-            String theirFollowers = RUTA_RAIZ + "/" + objetivo + "/followers.ins";
-            if (verificarEnArchivo(myFollowing, objetivo)) return false;
-
-            appendLine(myFollowing, objetivo);
-            appendLine(theirFollowers, usuarioActual.getUsername());
-            notificar(objetivo, "SEGUIDOR|" + usuarioActual.getUsername() + "|" + LocalDate.now());
-            return true;
-        } else {
-            return enviarSolicitud(objetivo);
-        }
-    }
-
-    @Override
-    public boolean dejarDeSeguir(String objetivo) {
-        if (usuarioActual == null) return false;
-        eliminarLineaDeArchivo(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins", objetivo);
-        eliminarLineaDeArchivo(RUTA_RAIZ + "/" + objetivo + "/followers.ins", usuarioActual.getUsername());
-        return true;
     }
 
     public boolean eliminarSeguidor(String seguidor) {
@@ -497,18 +419,13 @@ public class Sistema implements Interaccion, Mensajeria {
     }
 
     public void aceptarSolicitud(String solicitante) {
-        String rutaSol     = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/solicitudes.ins";
-        String miFollowers = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/followers.ins";
-        String suFollowing = RUTA_RAIZ + "/" + solicitante + "/following.ins";
-
-        appendLine(miFollowers, solicitante);
-        appendLine(suFollowing, usuarioActual.getUsername());
-        eliminarLineaDeArchivo(rutaSol, solicitante);
+        appendLine(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/followers.ins", solicitante);
+        appendLine(RUTA_RAIZ + "/" + solicitante + "/following.ins", usuarioActual.getUsername());
+        eliminarLineaDeArchivo(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/solicitudes.ins", solicitante);
     }
 
     public void rechazarSolicitud(String solicitante) {
-        eliminarLineaDeArchivo(
-            RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/solicitudes.ins", solicitante);
+        eliminarLineaDeArchivo(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/solicitudes.ins", solicitante);
     }
 
     public ArrayList<String> getSolicitudes() {
@@ -535,63 +452,48 @@ public class Sistema implements Interaccion, Mensajeria {
     // ══════════════════════════════════════════════════════════════
     public boolean yaDioLike(String autorPost, String fechaPost) {
         if (usuarioActual == null) return false;
-        String ruta = RUTA_RAIZ + "/" + autorPost + "/likes.ins";
         String prefijo = autorPost + "|" + fechaPost + "|" + usuarioActual.getUsername();
-        File f = new File(ruta);
+        File f = new File(RUTA_RAIZ + "/" + autorPost + "/likes.ins");
         if (!f.exists()) return false;
         try (Scanner sc = new Scanner(f)) {
-            while (sc.hasNextLine()) {
-                String l = sc.nextLine().trim();
-                if (l.startsWith(prefijo)) return true;
-            }
+            while (sc.hasNextLine()) if (sc.nextLine().trim().startsWith(prefijo)) return true;
         } catch (Exception ignored) {}
         return false;
     }
 
-    public boolean toggleLike(String autorPost, String fechaPost) {
-        return toggleLike(autorPost, fechaPost, "");
-    }
+    public boolean toggleLike(String autorPost, String fechaPost) { return toggleLike(autorPost, fechaPost, ""); }
 
     public boolean toggleLike(String autorPost, String fechaPost, String rutaImagen) {
         if (usuarioActual == null) return false;
-
         String rutaLikes = RUTA_RAIZ + "/" + autorPost + "/likes.ins";
         String prefijo   = autorPost + "|" + fechaPost + "|" + usuarioActual.getUsername();
 
-        boolean yaLiked = false;
-        String lineaExistente = null;
+        boolean yaLiked = false; String lineaEx = null;
         File f = new File(rutaLikes);
         if (f.exists()) {
             try (Scanner sc = new Scanner(f)) {
                 while (sc.hasNextLine()) {
                     String l = sc.nextLine().trim();
-                    if (l.startsWith(prefijo)) { yaLiked = true; lineaExistente = l; break; }
+                    if (l.startsWith(prefijo)) { yaLiked = true; lineaEx = l; break; }
                 }
             } catch (Exception ignored) {}
         }
 
-        if (yaLiked) {
-            eliminarLineaDeArchivo(rutaLikes, lineaExistente);
-            return false;
-        } else {
-            String lineaLike = prefijo + "|" + (rutaImagen != null ? rutaImagen : "");
+        if (yaLiked) { eliminarLineaDeArchivo(rutaLikes, lineaEx); return false; }
+        else {
             try (FileWriter fw = new FileWriter(rutaLikes, true)) {
-                fw.write(lineaLike + "\n");
+                fw.write(prefijo + "|" + (rutaImagen != null ? rutaImagen : "") + "\n");
             } catch (IOException e) { e.printStackTrace(); }
             return true;
         }
     }
 
     public int getCantidadLikes(String autorPost, String fechaPost) {
-        String ruta = RUTA_RAIZ + "/" + autorPost + "/likes.ins";
-        File f = new File(ruta);
+        File f = new File(RUTA_RAIZ + "/" + autorPost + "/likes.ins");
         if (!f.exists()) return 0;
-        int count = 0;
-        String prefijo = autorPost + "|" + fechaPost + "|";
+        int count = 0; String prefijo = autorPost + "|" + fechaPost + "|";
         try (Scanner sc = new Scanner(f)) {
-            while (sc.hasNextLine()) {
-                if (sc.nextLine().trim().startsWith(prefijo)) count++;
-            }
+            while (sc.hasNextLine()) if (sc.nextLine().trim().startsWith(prefijo)) count++;
         } catch (Exception ignored) {}
         return count;
     }
@@ -610,17 +512,14 @@ public class Sistema implements Interaccion, Mensajeria {
     public void agregarComentario(String autorPost, String fechaPost, String comentario) {
         if (usuarioActual == null) return;
         String ruta = RUTA_RAIZ + "/" + autorPost + "/comments.ins";
-        String linea = fechaPost + "|" + usuarioActual.getUsername() + "|" + comentario;
         try (FileWriter fw = new FileWriter(ruta, true)) {
-            fw.write(linea + "\n");
+            fw.write(fechaPost + "|" + usuarioActual.getUsername() + "|" + comentario + "\n");
         } catch (IOException e) { e.printStackTrace(); }
-
         for (String p : comentario.split(" ")) {
             if (p.startsWith("@")) {
-                String mencionado = p.substring(1);
-                if (existeUsername(mencionado))
-                    guardarNotificacion(mencionado,
-                        "MENCION|" + usuarioActual.getUsername()
+                String men = p.substring(1);
+                if (existeUsername(men))
+                    guardarNotificacion(men, "MENCION|" + usuarioActual.getUsername()
                         + "|" + comentario + "|" + LocalDate.now());
             }
         }
@@ -633,27 +532,20 @@ public class Sistema implements Interaccion, Mensajeria {
         try (Scanner sc = new Scanner(f)) {
             while (sc.hasNextLine()) {
                 String[] d = sc.nextLine().split("\\|");
-                if (d.length >= 3 && d[0].equals(fechaPost))
-                    lista.add(d[1] + ": " + d[2]);
+                if (d.length >= 3 && d[0].equals(fechaPost)) lista.add(d[1] + ": " + d[2]);
             }
         } catch (Exception ignored) {}
         return lista;
     }
 
     // ══════════════════════════════════════════════════════════════
-    //  NOTIFICACIONES GENERALES
+    //  NOTIFICACIONES
     // ══════════════════════════════════════════════════════════════
     private void guardarNotificacion(String destino, String mensaje) {
         String ruta = RUTA_RAIZ + "/" + destino + "/notifications.ins";
-        try {
-            File f = new File(ruta);
-            if (!f.getParentFile().exists()) f.getParentFile().mkdirs();
-            if (!f.exists()) f.createNewFile();
-        } catch (IOException ignored) {}
-
-        try (FileWriter fw = new FileWriter(ruta, true)) {
-            fw.write(mensaje + "\n");
-        } catch (IOException e) { e.printStackTrace(); }
+        try { File f=new File(ruta); if(!f.getParentFile().exists())f.getParentFile().mkdirs(); if(!f.exists())f.createNewFile(); } catch (IOException ignored) {}
+        try (FileWriter fw = new FileWriter(ruta, true)) { fw.write(mensaje + "\n"); }
+        catch (IOException e) { e.printStackTrace(); }
     }
 
     public ArrayList<String> getNotificacionesGenerales() {
@@ -669,8 +561,7 @@ public class Sistema implements Interaccion, Mensajeria {
     // ══════════════════════════════════════════════════════════════
     public boolean guardarMensaje(Mensaje m) {
         try (FileWriter fw = new FileWriter(RUTA_RAIZ + "/" + m.getReceptor() + "/inbox.ins", true)) {
-            fw.write(m.toFileString() + "\n");
-            return true;
+            fw.write(m.toFileString() + "\n"); return true;
         } catch (IOException e) { return false; }
     }
 
@@ -678,56 +569,44 @@ public class Sistema implements Interaccion, Mensajeria {
         Usuario u = buscarUsuario(receptor);
         if (u == null) return false;
         if (u.getTipoCuenta() == TipoCuenta.PUBLICA) return true;
-
-        boolean yoLoSigo  = verificarEnArchivo(
-            RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins", receptor);
-        boolean elMeSigue = verificarEnArchivo(
-            RUTA_RAIZ + "/" + receptor + "/followers.ins", usuarioActual.getUsername());
+        boolean yoLoSigo  = verificarEnArchivo(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins", receptor);
+        boolean elMeSigue = verificarEnArchivo(RUTA_RAIZ + "/" + receptor + "/followers.ins", usuarioActual.getUsername());
         return yoLoSigo && elMeSigue;
     }
 
     public boolean enviarMensaje(String receptor, String contenido, String tipo) {
         if (usuarioActual == null || contenido.length() > 300) return false;
+        LocalDate fecha = LocalDate.now(); LocalTime hora = LocalTime.now();
 
-        LocalDate fecha = LocalDate.now();
-        LocalTime hora  = LocalTime.now();
-
-        Mensaje paraReceptor = "STICKER".equals(tipo)
+        Mensaje paraRec = "STICKER".equals(tipo)
             ? new MensajeSticker(usuarioActual.getUsername(), receptor, contenido)
             : new MensajeTexto(usuarioActual.getUsername(), receptor, contenido);
-
         Mensaje miCopia = "STICKER".equals(tipo)
             ? new MensajeSticker(usuarioActual.getUsername(), receptor, contenido)
             : new MensajeTexto(usuarioActual.getUsername(), receptor, contenido);
 
-        paraReceptor.fecha = fecha; paraReceptor.hora = hora; paraReceptor.setEstado("NO_LEIDO");
-        miCopia.fecha      = fecha; miCopia.hora      = hora; miCopia.setEstado("NO_LEIDO");
+        paraRec.fecha = fecha; paraRec.hora = hora; paraRec.setEstado("NO_LEIDO");
+        miCopia.fecha = fecha; miCopia.hora = hora; miCopia.setEstado("NO_LEIDO");
 
-        guardarMensaje(paraReceptor);
-
+        guardarMensaje(paraRec);
         try (FileWriter fw = new FileWriter(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins", true)) {
             fw.write(miCopia.toFileString() + "\n");
         } catch (IOException e) { e.printStackTrace(); }
-
         return true;
     }
 
     public ArrayList<Mensaje> getConversacion(String otro) {
         ArrayList<Mensaje> conv = new ArrayList<>();
         if (usuarioActual == null) return conv;
-
         File archivo = new File(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins");
         if (!archivo.exists()) return conv;
-
         try (Scanner sc = new Scanner(archivo)) {
             while (sc.hasNextLine()) {
                 Mensaje m = Mensaje.fromFileString(sc.nextLine());
                 if (m != null) {
-                    boolean entrante = m.getEmisor().equals(otro)
-                            && m.getReceptor().equals(usuarioActual.getUsername());
-                    boolean saliente = m.getEmisor().equals(usuarioActual.getUsername())
-                            && m.getReceptor().equals(otro);
-                    if (entrante || saliente) conv.add(m);
+                    boolean en = m.getEmisor().equals(otro) && m.getReceptor().equals(usuarioActual.getUsername());
+                    boolean sa = m.getEmisor().equals(usuarioActual.getUsername()) && m.getReceptor().equals(otro);
+                    if (en || sa) conv.add(m);
                 }
             }
         } catch (Exception e) { e.printStackTrace(); }
@@ -736,78 +615,53 @@ public class Sistema implements Interaccion, Mensajeria {
 
     public void marcarComoLeido(String otro) {
         if (usuarioActual == null) return;
-
         String rutaMio = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins";
         File archivo = new File(rutaMio);
-        ArrayList<String> lineas = new ArrayList<>();
-
         if (!archivo.exists()) return;
-
+        ArrayList<String> lineas = new ArrayList<>();
         try (Scanner sc = new Scanner(archivo)) {
             while (sc.hasNextLine()) {
                 String linea = sc.nextLine();
                 Mensaje m = Mensaje.fromFileString(linea);
                 if (m != null && m.getEmisor().equals(otro) && "NO_LEIDO".equals(m.getEstado())) {
-                    m.setEstado("LEIDO");
-                    lineas.add(m.toFileString());
-                    actualizarEstadoEnArchivoAjeno(otro, usuarioActual.getUsername(),
-                        m.getFecha(), m.getHora());
-                } else {
-                    lineas.add(linea);
-                }
+                    m.setEstado("LEIDO"); lineas.add(m.toFileString());
+                    actualizarEstadoEnArchivoAjeno(otro, usuarioActual.getUsername(), m.getFecha(), m.getHora());
+                } else { lineas.add(linea); }
             }
         } catch (Exception e) { e.printStackTrace(); }
-
         reescribirArchivo(rutaMio, lineas);
     }
 
-    private void actualizarEstadoEnArchivoAjeno(String otro, String miUsername,
-                                                 java.time.LocalDate fecha, java.time.LocalTime hora) {
+    private void actualizarEstadoEnArchivoAjeno(String otro, String miUser,
+                                                  java.time.LocalDate fecha, java.time.LocalTime hora) {
         String rutaOtro = RUTA_RAIZ + "/" + otro + "/inbox.ins";
-        File f = new File(rutaOtro);
-        if (!f.exists()) return;
-
-        ArrayList<String> lineas = new ArrayList<>();
-        boolean cambio = false;
-
+        File f = new File(rutaOtro); if (!f.exists()) return;
+        ArrayList<String> lineas = new ArrayList<>();  boolean cambio = false;
         try (Scanner sc = new Scanner(f)) {
             while (sc.hasNextLine()) {
                 String linea = sc.nextLine();
                 Mensaje m = Mensaje.fromFileString(linea);
-                if (m != null
-                        && m.getEmisor().equals(otro)
-                        && m.getReceptor().equals(miUsername)
-                        && m.getFecha().equals(fecha)
-                        && m.getHora().equals(hora)) {
-                    m.setEstado("LEIDO");
-                    lineas.add(m.toFileString());
-                    cambio = true;
-                } else {
-                    lineas.add(linea);
-                }
+                if (m != null && m.getEmisor().equals(otro) && m.getReceptor().equals(miUser)
+                        && m.getFecha().equals(fecha) && m.getHora().equals(hora)) {
+                    m.setEstado("LEIDO"); lineas.add(m.toFileString()); cambio = true;
+                } else { lineas.add(linea); }
             }
         } catch (Exception e) { e.printStackTrace(); }
-
         if (cambio) reescribirArchivo(rutaOtro, lineas);
     }
 
     public ArrayList<String> getChatsRecientes() {
         ArrayList<String> usuarios = new ArrayList<>();
         if (usuarioActual == null) return usuarios;
-
         File archivo = new File(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins");
         if (!archivo.exists()) return usuarios;
-
         ArrayList<String> todasLineas = new ArrayList<>();
-        try (Scanner sc = new Scanner(archivo)) {
-            while (sc.hasNextLine()) todasLineas.add(sc.nextLine());
-        } catch (Exception e) { e.printStackTrace(); }
-
-        for (int i = todasLineas.size() - 1; i >= 0; i--) {
+        try (Scanner sc = new Scanner(archivo)) { while (sc.hasNextLine()) todasLineas.add(sc.nextLine()); }
+        catch (Exception e) { e.printStackTrace(); }
+        for (int i = todasLineas.size()-1; i >= 0; i--) {
             Mensaje m = Mensaje.fromFileString(todasLineas.get(i));
             if (m != null) {
-                String otro = m.getEmisor().equals(usuarioActual.getUsername())
-                    ? m.getReceptor() : m.getEmisor();
+                String otro = m.getEmisor().equals(usuarioActual.getUsername()) ? m.getReceptor() : m.getEmisor();
                 if (!usuarios.contains(otro)) usuarios.add(otro);
             }
         }
@@ -822,12 +676,9 @@ public class Sistema implements Interaccion, Mensajeria {
         try (Scanner sc = new Scanner(archivo)) {
             while (sc.hasNextLine()) {
                 Mensaje m = Mensaje.fromFileString(sc.nextLine());
-                if (m != null
-                        && m.getEmisor().equals(otroUsuario)
+                if (m != null && m.getEmisor().equals(otroUsuario)
                         && m.getReceptor().equals(usuarioActual.getUsername())
-                        && "NO_LEIDO".equals(m.getEstado())) {
-                    count++;
-                }
+                        && "NO_LEIDO".equals(m.getEstado())) count++;
             }
         } catch (Exception ignored) {}
         return count;
@@ -841,11 +692,8 @@ public class Sistema implements Interaccion, Mensajeria {
         try (Scanner sc = new Scanner(archivo)) {
             while (sc.hasNextLine()) {
                 Mensaje m = Mensaje.fromFileString(sc.nextLine());
-                if (m != null
-                        && m.getReceptor().equals(usuarioActual.getUsername())
-                        && "NO_LEIDO".equals(m.getEstado())) {
-                    count++;
-                }
+                if (m != null && m.getReceptor().equals(usuarioActual.getUsername())
+                        && "NO_LEIDO".equals(m.getEstado())) count++;
             }
         } catch (Exception ignored) {}
         return count;
@@ -854,26 +702,23 @@ public class Sistema implements Interaccion, Mensajeria {
     public void eliminarConversacion(String otro) {
         if (usuarioActual == null) return;
         String ruta = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/inbox.ins";
-        File archivo = new File(ruta);
-        if (!archivo.exists()) return;
-
+        File archivo = new File(ruta); if (!archivo.exists()) return;
         ArrayList<String> lineas = new ArrayList<>();
         try (Scanner sc = new Scanner(archivo)) {
             while (sc.hasNextLine()) {
                 String linea = sc.nextLine();
                 Mensaje m = Mensaje.fromFileString(linea);
-                boolean esConversacion = m != null
-                    && ((m.getEmisor().equals(otro) && m.getReceptor().equals(usuarioActual.getUsername()))
-                     || (m.getEmisor().equals(usuarioActual.getUsername()) && m.getReceptor().equals(otro)));
-                if (!esConversacion) lineas.add(linea);
+                boolean esConv = m != null && (
+                    (m.getEmisor().equals(otro) && m.getReceptor().equals(usuarioActual.getUsername())) ||
+                    (m.getEmisor().equals(usuarioActual.getUsername()) && m.getReceptor().equals(otro)));
+                if (!esConv) lineas.add(linea);
             }
         } catch (Exception ignored) {}
         reescribirArchivo(ruta, lineas);
     }
 
     public void compartirPost(String destino, String autorPost, String rutaImagen, String contenido) {
-        String msg = "SHARE|" + autorPost + "|" + rutaImagen + "|" + contenido;
-        enviarMensaje(destino, msg, "TEXTO");
+        enviarMensaje(destino, "SHARE|" + autorPost + "|" + rutaImagen + "|" + contenido, "TEXTO");
     }
 
     public boolean puedeCompartirPost(String destino, String autorPost) {
@@ -881,7 +726,6 @@ public class Sistema implements Interaccion, Mensajeria {
         Usuario dst   = buscarUsuario(destino);
         if (autor == null || dst == null) return false;
         if (autor.getTipoCuenta() == TipoCuenta.PUBLICA) return true;
-
         boolean dSigueA = verificarEnArchivo(RUTA_RAIZ + "/" + destino + "/following.ins", autorPost);
         boolean aSigueD = verificarEnArchivo(RUTA_RAIZ + "/" + autorPost + "/following.ins", destino);
         return dSigueA && aSigueD;
@@ -892,27 +736,19 @@ public class Sistema implements Interaccion, Mensajeria {
     // ══════════════════════════════════════════════════════════════
     public ArrayList<String> getStickersGlobales() {
         ArrayList<String> lista = new ArrayList<>();
-        File carpeta = new File(RUTA_RAIZ + "/stickers_globales");
-        carpeta.mkdirs();
-        String[] archivos = carpeta.list((d, n) ->
-            n.toLowerCase().endsWith(".png") || n.toLowerCase().endsWith(".jpg"));
-        if (archivos != null)
-            for (String f : archivos) lista.add(carpeta.getPath() + "/" + f);
+        File carpeta = new File(RUTA_RAIZ + "/stickers_globales"); carpeta.mkdirs();
+        String[] archivos = carpeta.list((d,n) -> n.toLowerCase().endsWith(".png") || n.toLowerCase().endsWith(".jpg"));
+        if (archivos != null) for (String f : archivos) lista.add(carpeta.getPath() + "/" + f);
         return lista;
     }
 
     public boolean guardarStickerPersonal(File origen, String username) {
         try {
-            String rutaCarpeta = RUTA_RAIZ + "/" + username + "/stickers_personales";
-            new File(rutaCarpeta).mkdirs();
-            String nombreFinal = "sticker_" + System.currentTimeMillis() + ".png";
-            File dest = new File(rutaCarpeta + "/" + nombreFinal);
-            java.nio.file.Files.copy(origen.toPath(), dest.toPath(),
-                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-
-            String rutaStickersIns = RUTA_RAIZ + "/" + username + "/stickers.ins";
-            appendLine(rutaStickersIns, dest.getAbsolutePath());
-
+            String rc = RUTA_RAIZ + "/" + username + "/stickers_personales"; new File(rc).mkdirs();
+            String nf = "sticker_" + System.currentTimeMillis() + ".png";
+            File dest = new File(rc + "/" + nf);
+            java.nio.file.Files.copy(origen.toPath(), dest.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            appendLine(RUTA_RAIZ + "/" + username + "/stickers.ins", dest.getAbsolutePath());
             return true;
         } catch (IOException e) { e.printStackTrace(); return false; }
     }
@@ -921,40 +757,33 @@ public class Sistema implements Interaccion, Mensajeria {
         ArrayList<String> lista = new ArrayList<>(getStickersGlobales());
         File carpeta = new File(RUTA_RAIZ + "/" + username + "/stickers_personales");
         if (carpeta.exists()) {
-            String[] archivos = carpeta.list((d, n) ->
-                n.toLowerCase().endsWith(".png") || n.toLowerCase().endsWith(".jpg"));
-            if (archivos != null)
-                for (String f : archivos) lista.add(carpeta.getPath() + "/" + f);
+            String[] archivos = carpeta.list((d,n) -> n.toLowerCase().endsWith(".png") || n.toLowerCase().endsWith(".jpg"));
+            if (archivos != null) for (String f : archivos) lista.add(carpeta.getPath() + "/" + f);
         }
         return lista;
     }
 
     // ══════════════════════════════════════════════════════════════
-    //  BÚSQUEDA POR HASHTAG
+    //  BÚSQUEDA POR HASHTAG (sin duplicados, sin desactivados)
     // ══════════════════════════════════════════════════════════════
     public ArrayList<Publicacion> buscarPorHashtag(String hashtag) {
         ArrayList<Publicacion> resultados = new ArrayList<>();
         if (hashtag == null || hashtag.isEmpty()) return resultados;
         if (!hashtag.startsWith("#")) hashtag = "#" + hashtag;
-
-        ArrayList<String> idsAgregados = new ArrayList<>();
-
+        ArrayList<String> ids = new ArrayList<>();
         File raiz = new File(RUTA_RAIZ);
         String[] users = raiz.list();
         if (users == null) return resultados;
-
         for (String u : users) {
             File f = new File(RUTA_RAIZ + "/" + u);
             if (!f.isDirectory() || u.equals("stickers_globales")) continue;
-
+            // No mostrar posts de cuentas desactivadas
+            Usuario usr = buscarUsuario(u);
+            if (usr != null && usr.getEstadoCuenta() == EstadoCuenta.DESACTIVADO) continue;
             for (Publicacion p : getPublicacionesDeUsuario(u)) {
                 if (p.getContenido() == null || !p.getContenido().contains(hashtag)) continue;
-
-                String idPost = p.getAutor() + "|" + p.getFecha() + "|" + p.getHora();
-                if (!idsAgregados.contains(idPost)) {
-                    idsAgregados.add(idPost);
-                    resultados.add(p);
-                }
+                String id = p.getAutor() + "|" + p.getFecha() + "|" + p.getHora();
+                if (!ids.contains(id)) { ids.add(id); resultados.add(p); }
             }
         }
         return resultados;
@@ -971,14 +800,13 @@ public class Sistema implements Interaccion, Mensajeria {
 
     public void reactivarCuenta(String username) {
         actualizarCampoUsuario(username, 8, EstadoCuenta.ACTIVO.name());
+        invalidarCache(); // garantizar que la GUI vea el cambio inmediatamente
     }
 
     public boolean actualizarDatosUsuario(String nuevoNombre, String nuevaPassword) {
         if (usuarioActual == null) return false;
-
         File archivo = new File(RUTA_USERS);
         ArrayList<String> lineas = new ArrayList<>();
-
         try (Scanner sc = new Scanner(archivo)) {
             while (sc.hasNextLine()) {
                 String linea = sc.nextLine();
@@ -993,7 +821,6 @@ public class Sistema implements Interaccion, Mensajeria {
                 lineas.add(linea);
             }
         } catch (Exception e) { e.printStackTrace(); return false; }
-
         reescribirArchivo(RUTA_USERS, lineas);
         return true;
     }
@@ -1005,7 +832,7 @@ public class Sistema implements Interaccion, Mensajeria {
     }
 
     // ══════════════════════════════════════════════════════════════
-    //  SESIÓN ÚNICA (LOCK FILE)
+    //  SESIÓN
     // ══════════════════════════════════════════════════════════════
     public boolean sesionActiva(String username) {
         return new File(RUTA_RAIZ + "/" + username + "/session.lock").exists();
@@ -1028,19 +855,19 @@ public class Sistema implements Interaccion, Mensajeria {
     public ArrayList<Publicacion> getMenciones() {
         ArrayList<Publicacion> menciones = new ArrayList<>();
         if (usuarioActual == null) return menciones;
-
         String miUsername = usuarioActual.getUsername();
         File raiz = new File(RUTA_RAIZ);
         String[] carpetas = raiz.list();
         if (carpetas == null) return menciones;
-
         for (String folder : carpetas) {
             File f = new File(RUTA_RAIZ + "/" + folder);
-            if (f.isDirectory() && !folder.equals("stickers_globales")) {
-                for (Publicacion p : getPublicacionesDeUsuario(folder)) {
-                    if (p.getContenido() != null && p.getContenido().contains("@" + miUsername))
-                        menciones.add(p);
-                }
+            if (!f.isDirectory() || folder.equals("stickers_globales")) continue;
+            // No mostrar menciones de cuentas desactivadas
+            Usuario u = buscarUsuario(folder);
+            if (u != null && u.getEstadoCuenta() == EstadoCuenta.DESACTIVADO) continue;
+            for (Publicacion p : getPublicacionesDeUsuario(folder)) {
+                if (p.getContenido() != null && p.getContenido().contains("@" + miUsername))
+                    menciones.add(p);
             }
         }
         return menciones;
@@ -1053,20 +880,19 @@ public class Sistema implements Interaccion, Mensajeria {
         try {
             BufferedImage img = javax.imageio.ImageIO.read(original);
             if (img == null) return null;
+            // Aplanar sobre blanco antes de recortar (evita canal alfa gris)
+            BufferedImage flat = new BufferedImage(img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_RGB);
+            Graphics2D gf = flat.createGraphics(); gf.setColor(java.awt.Color.WHITE); gf.fillRect(0,0,flat.getWidth(),flat.getHeight()); gf.drawImage(img,0,0,null); gf.dispose();
 
-            int ancho = img.getWidth(), alto = img.getHeight();
+            int ancho = flat.getWidth(), alto = flat.getHeight();
             int lado = Math.min(ancho, alto);
-            int x = (ancho - lado) / 2, y = (alto - lado) / 2;
-
-            BufferedImage recortada = img.getSubimage(x, y, lado, lado);
+            int x = (ancho-lado)/2, y = (alto-lado)/2;
+            BufferedImage recortada = flat.getSubimage(x, y, lado, lado);
             BufferedImage final300  = new BufferedImage(300, 300, BufferedImage.TYPE_INT_RGB);
             Graphics2D g = final300.createGraphics();
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            g.drawImage(recortada, 0, 0, 300, 300, null);
-            g.dispose();
-
-            File carpeta = new File(RUTA_RAIZ + "/" + username + "/imagenes");
-            carpeta.mkdirs();
+            g.drawImage(recortada, 0, 0, 300, 300, null); g.dispose();
+            File carpeta = new File(RUTA_RAIZ + "/" + username + "/imagenes"); carpeta.mkdirs();
             File dest = new File(carpeta, nombreArchivo + ".jpg");
             javax.imageio.ImageIO.write(final300, "jpg", dest);
             return dest.getAbsolutePath();
@@ -1077,28 +903,25 @@ public class Sistema implements Interaccion, Mensajeria {
         try {
             BufferedImage img = javax.imageio.ImageIO.read(original);
             if (img == null) return null;
+            // Aplanar sobre blanco
+            BufferedImage flat = new BufferedImage(img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_RGB);
+            Graphics2D gf = flat.createGraphics(); gf.setColor(java.awt.Color.WHITE); gf.fillRect(0,0,flat.getWidth(),flat.getHeight()); gf.drawImage(img,0,0,null); gf.dispose();
 
             int anchoFinal = 600;
-            double ratio   = (double) img.getHeight() / img.getWidth();
+            double ratio   = (double) flat.getHeight() / flat.getWidth();
             int altoFinal  = Math.min((int)(anchoFinal * ratio), 800);
-
             BufferedImage final_ = new BufferedImage(anchoFinal, altoFinal, BufferedImage.TYPE_INT_RGB);
             Graphics2D g = final_.createGraphics();
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            g.drawImage(img, 0, 0, anchoFinal, altoFinal, null);
-            g.dispose();
+            g.drawImage(flat, 0, 0, anchoFinal, altoFinal, null); g.dispose();
 
-            String ruta = RUTA_RAIZ + "/" + username + "/imagenes";
-            new File(ruta).mkdirs();
+            String ruta = RUTA_RAIZ + "/" + username + "/imagenes"; new File(ruta).mkdirs();
             String rutaFinal = ruta + "/" + nombreArchivo + ".jpg";
-
-            javax.imageio.ImageWriter writer = javax.imageio.ImageIO
-                .getImageWritersByFormatName("jpg").next();
+            javax.imageio.ImageWriter writer = javax.imageio.ImageIO.getImageWritersByFormatName("jpg").next();
             javax.imageio.ImageWriteParam param = writer.getDefaultWriteParam();
             param.setCompressionMode(javax.imageio.ImageWriteParam.MODE_EXPLICIT);
             param.setCompressionQuality(0.95f);
-            javax.imageio.stream.ImageOutputStream ios =
-                javax.imageio.ImageIO.createImageOutputStream(new File(rutaFinal));
+            javax.imageio.stream.ImageOutputStream ios = javax.imageio.ImageIO.createImageOutputStream(new File(rutaFinal));
             writer.setOutput(ios);
             writer.write(null, new javax.imageio.IIOImage(final_, null, null), param);
             writer.dispose(); ios.close();
@@ -1110,61 +933,47 @@ public class Sistema implements Interaccion, Mensajeria {
     //  HELPERS PRIVADOS
     // ══════════════════════════════════════════════════════════════
     private boolean verificarEnArchivo(String ruta, String texto) {
-        File f = new File(ruta);
-        if (!f.exists()) return false;
-        try (Scanner sc = new Scanner(f)) {
-            while (sc.hasNextLine())
-                if (sc.nextLine().trim().equals(texto)) return true;
-        } catch (Exception ignored) {}
+        File f = new File(ruta); if (!f.exists()) return false;
+        try (Scanner sc = new Scanner(f)) { while (sc.hasNextLine()) if (sc.nextLine().trim().equals(texto)) return true; }
+        catch (Exception ignored) {}
         return false;
     }
 
     private void eliminarLineaDeArchivo(String ruta, String texto) {
-        File f = new File(ruta);
-        if (!f.exists()) return;
+        File f = new File(ruta); if (!f.exists()) return;
         ArrayList<String> lineas = new ArrayList<>();
         try (Scanner sc = new Scanner(f)) {
             while (sc.hasNextLine()) {
                 String l = sc.nextLine();
-                if (!l.trim().equals(texto) && !l.trim().startsWith(texto + "|"))
-                    lineas.add(l);
+                if (!l.trim().equals(texto) && !l.trim().startsWith(texto + "|")) lineas.add(l);
             }
         } catch (Exception ignored) {}
         reescribirArchivo(ruta, lineas);
     }
 
     private boolean appendLine(String ruta, String linea) {
-        try (FileWriter fw = new FileWriter(ruta, true)) {
-            fw.write(linea + "\n");
-            return true;
-        } catch (IOException e) { e.printStackTrace(); return false; }
+        try (FileWriter fw = new FileWriter(ruta, true)) { fw.write(linea + "\n"); return true; }
+        catch (IOException e) { e.printStackTrace(); return false; }
     }
 
     private void leerLineas(String ruta, ArrayList<String> lista) {
-        File f = new File(ruta);
-        if (!f.exists()) return;
+        File f = new File(ruta); if (!f.exists()) return;
         try (Scanner sc = new Scanner(f)) {
-            while (sc.hasNextLine()) {
-                String l = sc.nextLine().trim();
-                if (!l.isEmpty()) lista.add(l);
-            }
+            while (sc.hasNextLine()) { String l = sc.nextLine().trim(); if (!l.isEmpty()) lista.add(l); }
         } catch (Exception ignored) {}
     }
 
     private int contarLineas(String ruta) {
-        File f = new File(ruta);
-        if (!f.exists()) return 0;
+        File f = new File(ruta); if (!f.exists()) return 0;
         int count = 0;
-        try (Scanner sc = new Scanner(f)) {
-            while (sc.hasNextLine()) { sc.nextLine(); count++; }
-        } catch (Exception ignored) {}
+        try (Scanner sc = new Scanner(f)) { while (sc.hasNextLine()) { sc.nextLine(); count++; } }
+        catch (Exception ignored) {}
         return count;
     }
 
     private void reescribirArchivo(String ruta, ArrayList<String> lineas) {
-        try (FileWriter fw = new FileWriter(ruta)) {
-            for (String l : lineas) fw.write(l + "\n");
-        } catch (IOException e) { e.printStackTrace(); }
+        try (FileWriter fw = new FileWriter(ruta)) { for (String l : lineas) fw.write(l + "\n"); }
+        catch (IOException e) { e.printStackTrace(); }
     }
 
     private boolean actualizarCampoUsuario(String username, int indice, String valor) {
@@ -1175,10 +984,7 @@ public class Sistema implements Interaccion, Mensajeria {
                 String linea = sc.nextLine();
                 if (linea.trim().isEmpty()) { lineas.add(linea); continue; }
                 String[] d = linea.split("\\|");
-                if (d.length > indice && d[0].equals(username)) {
-                    d[indice] = valor;
-                    linea = String.join("|", d);
-                }
+                if (d.length > indice && d[0].equals(username)) { d[indice] = valor; linea = String.join("|", d); }
                 lineas.add(linea);
             }
         } catch (Exception e) { e.printStackTrace(); return false; }
@@ -1188,40 +994,27 @@ public class Sistema implements Interaccion, Mensajeria {
     }
 
     // ══════════════════════════════════════════════════════════════
-    //  ARCHIVOS BINARIOS — backup serializado de publicaciones
+    //  ARCHIVOS BINARIOS — backup de publicaciones
     // ══════════════════════════════════════════════════════════════
     private void guardarPublicacionBinario(Publicacion p) {
         if (usuarioActual == null) return;
         String rutaBin = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/backup_posts.bin";
-
         ArrayList<Publicacion> lista = leerPublicacionesBinario(usuarioActual.getUsername());
         lista.add(p);
-
-        try (ObjectOutputStream oos = new ObjectOutputStream(
-                new java.io.FileOutputStream(rutaBin))) {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new java.io.FileOutputStream(rutaBin))) {
             oos.writeObject(lista);
-        } catch (IOException e) {
-            System.out.println("Aviso: No se pudo guardar backup binario: " + e.getMessage());
-        }
+        } catch (IOException e) { System.out.println("Aviso backup binario: " + e.getMessage()); }
     }
 
     @SuppressWarnings("unchecked")
     public ArrayList<Publicacion> leerPublicacionesBinario(String username) {
         String rutaBin = RUTA_RAIZ + "/" + username + "/backup_posts.bin";
-        File f = new File(rutaBin);
-        if (!f.exists()) return new ArrayList<>();
-
-        try (ObjectInputStream ois = new ObjectInputStream(
-                new java.io.FileInputStream(rutaBin))) {
+        File f = new File(rutaBin); if (!f.exists()) return new ArrayList<>();
+        try (ObjectInputStream ois = new ObjectInputStream(new java.io.FileInputStream(rutaBin))) {
             Object obj = ois.readObject();
-            if (obj instanceof ArrayList) {
-                return (ArrayList<Publicacion>) obj;
-            }
-        } catch (IOException e) {
-            System.out.println("Backup binario no legible (normal en primer uso): " + e.getMessage());
-        } catch (ClassNotFoundException e) {
-            System.out.println("Clase no encontrada al leer binario: " + e.getMessage());
-        }
+            if (obj instanceof ArrayList) return (ArrayList<Publicacion>) obj;
+        } catch (IOException e) { System.out.println("Backup binario no legible: " + e.getMessage()); }
+        catch (ClassNotFoundException e) { System.out.println("Clase no encontrada en binario."); }
         return new ArrayList<>();
     }
 }
