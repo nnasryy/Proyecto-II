@@ -6,17 +6,6 @@ import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.RoundRectangle2D;
 
-/**
- * InstaDialog — diálogos estilo Instagram sin decoración del SO.
- *
- * BUG CORREGIDO: el código anterior usaba (Frame) null como owner,
- * lo que hacía que windowClosed no disparara en algunos sistemas,
- * dejando el glasspane activo y bloqueando toda la interfaz.
- *
- * SOLUCIÓN: findFrame() obtiene el JFrame real como owner.
- * El JDialog modal bloquea el padre por sí solo — sin glasspane.
- * El overlay oscuro se dibuja dentro del propio JDialog.
- */
 public class InstaDialog {
 
     private static final Color BG        = Color.WHITE;
@@ -53,7 +42,7 @@ public class InstaDialog {
         ok.addActionListener(e -> d.dispose());
         card.add(buildSouthSingle(ok), BorderLayout.SOUTH);
 
-        show(d, card);
+        show(d, card, parent);
     }
 
     // ── CONFIRMACIÓN ─────────────────────────────────────────────
@@ -78,7 +67,7 @@ public class InstaDialog {
         btnNo.addActionListener(e  -> d.dispose());
         card.add(buildSouthPair(btnNo, btnYes), BorderLayout.SOUTH);
 
-        show(d, card);
+        show(d, card, parent);
         return result[0];
     }
 
@@ -113,7 +102,7 @@ public class InstaDialog {
         txt.addActionListener(e -> ok.doClick());
         card.add(buildSouthPair(can, ok), BorderLayout.SOUTH);
 
-        show(d, card);
+        show(d, card, parent);
         return result[0];
     }
 
@@ -122,7 +111,7 @@ public class InstaDialog {
     // ════════════════════════════════════════════════════════════
     private static JDialog buildBase(Component parent, int w, int h) {
         Frame owner = findFrame(parent);
-        JDialog d   = new JDialog(owner, true);   // modal — bloquea sin glasspane
+        JDialog d   = new JDialog(owner, true);
         d.setUndecorated(true);
         try {
             d.getRootPane().setOpaque(false);
@@ -133,9 +122,8 @@ public class InstaDialog {
         d.setSize(w, h);
         d.setLocationRelativeTo(parent);
 
-        // Cerrar con Escape
         d.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
-            .put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ESCAPE, 0), "esc_close");
+            .put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "esc_close");
         d.getRootPane().getActionMap()
             .put("esc_close", new AbstractAction() {
                 public void actionPerformed(ActionEvent e) { d.dispose(); }
@@ -143,31 +131,76 @@ public class InstaDialog {
         return d;
     }
 
-    private static void show(JDialog d, JPanel card) {
+    private static void show(JDialog d, JPanel card, Component parent) {
+        // ── Glasspane sobre el JFrame padre ──
+        JFrame frame = findJFrame(parent);
+        Component oldGlass = null;
+        JPanel glass = null;
+
+        if (frame != null) {
+            oldGlass = frame.getGlassPane();
+            glass = new JPanel() {
+                @Override protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setColor(new Color(0, 0, 0, 150));
+                    g2.fillRect(0, 0, getWidth(), getHeight());
+                    g2.dispose();
+                }
+            };
+            glass.setOpaque(false);
+            glass.addMouseListener(new MouseAdapter() {}); // bloquea clicks
+            frame.setGlassPane(glass);
+            glass.setVisible(true);
+        }
+
+        // ── Contenido del diálogo ──
         JPanel root = new JPanel(new GridBagLayout()) {
             @Override protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setColor(OVERLAY);
-                g2.fillRect(0, 0, getWidth(), getHeight());
-                g2.dispose();
+                // fondo transparente — el oscurecido lo hace el glasspane
             }
         };
         root.setOpaque(false);
-        root.add(card);                // GridBagLayout centra automáticamente
+        root.add(card);
         card.setOpaque(false);
         d.setContentPane(root);
-        d.setVisible(true);            // bloquea aquí (modal); retorna al dispose()
+
+        // ── Al cerrar: quitar glasspane ──
+        final Component finalOldGlass = oldGlass;
+        final JPanel   finalGlass     = glass;
+        final JFrame   finalFrame     = frame;
+        d.addWindowListener(new WindowAdapter() {
+            @Override public void windowClosed(WindowEvent e) {
+                if (finalFrame != null && finalGlass != null) {
+                    finalGlass.setVisible(false);
+                    finalFrame.setGlassPane(finalOldGlass != null
+                        ? finalOldGlass
+                        : new JPanel() {{ setOpaque(false); }});
+                }
+            }
+        });
+
+        d.setVisible(true); // bloquea aquí (modal)
     }
 
     // ════════════════════════════════════════════════════════════
     //  HELPERS
     // ════════════════════════════════════════════════════════════
-    /** Sube por la jerarquía hasta el JFrame raíz. */
     private static Frame findFrame(Component c) {
         if (c instanceof Frame) return (Frame) c;
         Window w = (c instanceof Window) ? (Window) c : SwingUtilities.getWindowAncestor(c);
         while (w != null) {
             if (w instanceof Frame) return (Frame) w;
+            w = w.getOwner();
+        }
+        return null;
+    }
+
+    /** Busca el JFrame raíz para el glasspane. */
+    private static JFrame findJFrame(Component c) {
+        if (c instanceof JFrame) return (JFrame) c;
+        Window w = (c instanceof Window) ? (Window) c : SwingUtilities.getWindowAncestor(c);
+        while (w != null) {
+            if (w instanceof JFrame) return (JFrame) w;
             w = w.getOwner();
         }
         return null;
@@ -191,22 +224,33 @@ public class InstaDialog {
     }
 
     private static JPanel buildSouthSingle(JButton btn) {
-        JSeparator sep = new JSeparator(); sep.setForeground(DIVIDER); sep.setBackground(DIVIDER);
-        JPanel row = new JPanel(new GridLayout(1, 1)); row.setBackground(BG); row.add(btn);
-        JPanel s = new JPanel(new BorderLayout()); s.setBackground(BG);
-        s.add(sep, BorderLayout.NORTH); s.add(row, BorderLayout.CENTER);
+        JSeparator sep = new JSeparator();
+        sep.setForeground(DIVIDER); sep.setBackground(DIVIDER);
+        JPanel row = new JPanel(new GridLayout(1, 1));
+        row.setBackground(BG); row.add(btn);
+        JPanel s = new JPanel(new BorderLayout());
+        s.setBackground(BG);
+        s.add(sep, BorderLayout.NORTH);
+        s.add(row, BorderLayout.CENTER);
         return s;
     }
 
     private static JPanel buildSouthPair(JButton left, JButton right) {
-        JSeparator top = new JSeparator(); top.setForeground(DIVIDER); top.setBackground(DIVIDER);
-        JPanel lw = new JPanel(new GridLayout(1,1)); lw.setBackground(BG); lw.add(left);  lw.setPreferredSize(new Dimension(159, 44));
-        JPanel rw = new JPanel(new GridLayout(1,1)); rw.setBackground(BG); rw.add(right); rw.setPreferredSize(new Dimension(159, 44));
-        JSeparator vs = new JSeparator(SwingConstants.VERTICAL); vs.setPreferredSize(new Dimension(1, 44)); vs.setForeground(DIVIDER);
+        JSeparator top = new JSeparator();
+        top.setForeground(DIVIDER); top.setBackground(DIVIDER);
+        JPanel lw = new JPanel(new GridLayout(1,1)); lw.setBackground(BG); lw.add(left);
+        lw.setPreferredSize(new Dimension(159, 44));
+        JPanel rw = new JPanel(new GridLayout(1,1)); rw.setBackground(BG); rw.add(right);
+        rw.setPreferredSize(new Dimension(159, 44));
+        JSeparator vs = new JSeparator(SwingConstants.VERTICAL);
+        vs.setPreferredSize(new Dimension(1, 44)); vs.setForeground(DIVIDER);
         JPanel pair = new JPanel(new BorderLayout()); pair.setBackground(BG);
-        pair.add(lw, BorderLayout.WEST); pair.add(vs, BorderLayout.CENTER); pair.add(rw, BorderLayout.EAST);
+        pair.add(lw, BorderLayout.WEST);
+        pair.add(vs, BorderLayout.CENTER);
+        pair.add(rw, BorderLayout.EAST);
         JPanel s = new JPanel(new BorderLayout()); s.setBackground(BG);
-        s.add(top, BorderLayout.NORTH); s.add(pair, BorderLayout.CENTER);
+        s.add(top, BorderLayout.NORTH);
+        s.add(pair, BorderLayout.CENTER);
         return s;
     }
 

@@ -619,9 +619,10 @@ public class VentanaPrincipal extends JFrame {
         } catch (Exception ignored) {
         }
 
-        // Acciones
-        JPanel acciones = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 6));
+        // Acciones — pegadas directamente al sur de la imagen
+        JPanel acciones = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 8));
         acciones.setBackground(C_WHITE);
+        acciones.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0));
         boolean liked = sistema.yaDioLike(p.getAutor(), p.getFecha().toString());
         JButton btnLike = iconBtn(liked);
         btnLike.addActionListener(ev -> {
@@ -646,8 +647,12 @@ public class VentanaPrincipal extends JFrame {
                 InstaDialog.showMessage(this, "Esa cuenta no está disponible.", true);
                 return;
             }
+            if (!sistema.puedeEnviarMensaje(dest)) {
+                InstaDialog.showMessage(this, "No puedes enviar mensajes a @" + dest + ".\nSu cuenta es privada — deben seguirse mutuamente.", true);
+                return;
+            }
             if (!sistema.puedeCompartirPost(dest, p.getAutor())) {
-                InstaDialog.showMessage(this, "No puedes compartir este post.\nEl autor tiene cuenta privada.", true);
+                InstaDialog.showMessage(this, "No puedes compartir este post con @" + dest + ".\nEl autor tiene cuenta privada.", true);
                 return;
             }
             sistema.compartirPost(dest, p.getAutor(), p.getRutaImagen(), p.getContenido());
@@ -660,7 +665,7 @@ public class VentanaPrincipal extends JFrame {
         acciones.add(btnComment);
         acciones.add(btnShare);
 
-        // Footer
+// Footer
         JPanel footer = new JPanel();
         footer.setLayout(new BoxLayout(footer, BoxLayout.Y_AXIS));
         footer.setBackground(C_WHITE);
@@ -683,7 +688,6 @@ public class VentanaPrincipal extends JFrame {
         });
         footer.add(edCaption);
 
-        // Comentarios preview (máx 2) en el feed
         ArrayList<String> comentarios = sistema.getComentarios(p.getAutor(), p.getFecha().toString());
         if (!comentarios.isEmpty()) {
             int mostrar = Math.min(2, comentarios.size());
@@ -730,6 +734,7 @@ public class VentanaPrincipal extends JFrame {
         post.add(lblImg, BorderLayout.CENTER);
         post.add(footer, BorderLayout.SOUTH);
         return post;
+
     }
 
     /**
@@ -1309,10 +1314,17 @@ public class VentanaPrincipal extends JFrame {
         info.add(row3);
         info.add(Box.createVerticalStrut(4));
         if (u != null) {
-            String datos = (u.getGenero() == 'M' ? "Masculino" : "Femenino") + "  ·  " + u.getEdad() + " años  ·  " + u.getTipoCuenta().name() + "  ·  Desde " + u.getFechaRegistro();
+            String estadoStr = u.getEstadoCuenta() == EstadoCuenta.ACTIVO ? "Activo" : "Desactivado";
+            String datos = (u.getGenero() == 'M' ? "Masculino" : "Femenino") + "  ·  "
+                    + u.getEdad() + " años  ·  "
+                    + u.getTipoCuenta().name() + "  ·  "
+                    + estadoStr + "  ·  "
+                    + "Desde " + u.getFechaRegistro();
             JLabel lblD = new JLabel(datos);
             lblD.setFont(F_SMALL);
-            lblD.setForeground(C_TEXT_LIGHT);
+            lblD.setForeground(u.getEstadoCuenta() == EstadoCuenta.DESACTIVADO
+                    ? C_ERROR
+                    : C_TEXT_LIGHT);
             JPanel row4 = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
             row4.setBackground(C_BG);
             row4.add(lblD);
@@ -1872,56 +1884,70 @@ public class VentanaPrincipal extends JFrame {
         if (u.getEstadoCuenta() == EstadoCuenta.DESACTIVADO) {
             return new JPanel();
         }
+
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(C_WHITE);
         p.setMaximumSize(new Dimension(700, 68));
-        p.setBorder(BorderFactory.createCompoundBorder(new LineBorder(C_BORDER, 1), BorderFactory.createEmptyBorder(12, 14, 12, 14)));
+        p.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(C_BORDER, 1),
+                BorderFactory.createEmptyBorder(10, 14, 10, 14)));
         p.setCursor(new Cursor(Cursor.HAND_CURSOR));
         p.addMouseListener(click(() -> cargarVistaPerfil(u.getUsername())));
+
+        // Izquierda: foto + textos
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         left.setBackground(C_WHITE);
-        left.add(new JLabel(cargarFotoCircular(u.getUsername(), 38)));
-        JLabel nombre = new JLabel(u.getUsername());
-        nombre.setFont(F_BOLD);
-        nombre.setForeground(C_TEXT);
-        JLabel nomReal = new JLabel(u.getNombreCompleto());
-        nomReal.setFont(F_SMALL);
-        nomReal.setForeground(C_TEXT_LIGHT);
+        left.add(new JLabel(cargarFotoCircular(u.getUsername(), 40)));
+
         JPanel textos = new JPanel();
         textos.setLayout(new BoxLayout(textos, BoxLayout.Y_AXIS));
         textos.setBackground(C_WHITE);
-        JPanel nr = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
-        nr.setBackground(C_WHITE);
-        nr.add(nombre);
-        nr.add(badgeVerificado(u.getUsername()));
-        textos.add(nr);
-        textos.add(nomReal);
-        left.add(textos);
-        JLabel tipo = new JLabel();
+
+        // Fila username + badge verificado + candado si privada
+        JPanel fila1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        fila1.setBackground(C_WHITE);
+        JLabel nombre = new JLabel(u.getUsername());
+        nombre.setFont(F_BOLD);
+        nombre.setForeground(C_TEXT);
+        fila1.add(nombre);
+        fila1.add(badgeVerificado(u.getUsername()));
         if (u.getTipoCuenta() == TipoCuenta.PRIVADA) {
+            JLabel candado = new JLabel();
             if (iconsNormal.containsKey("Lock")) {
-                tipo.setIcon(iconsNormal.get("Lock"));
+                candado.setIcon(iconsNormal.get("Lock"));
             } else {
-                tipo.setText("Priv.");
-                tipo.setFont(F_SMALL);
-                tipo.setForeground(C_TEXT_LIGHT);
+                candado.setText("🔒");
+                candado.setFont(F_SMALL);
             }
+            candado.setForeground(C_TEXT_LIGHT);
+            fila1.add(candado);
         }
+        textos.add(fila1);
+
+        // Fila nombre real
+        JLabel nomReal = new JLabel(u.getNombreCompleto());
+        nomReal.setFont(F_SMALL);
+        nomReal.setForeground(C_TEXT_LIGHT);
+        nomReal.setBorder(BorderFactory.createEmptyBorder(2, 4, 0, 0));
+        textos.add(nomReal);
+
+        left.add(textos);
         p.add(left, BorderLayout.WEST);
-        p.add(tipo, BorderLayout.EAST);
+
+        // Hover
         p.addMouseListener(new MouseAdapter() {
             public void mouseEntered(MouseEvent e) {
-                p.setBackground(C_BG);
-                left.setBackground(C_BG);
-                textos.setBackground(C_BG);
-                nr.setBackground(C_BG);
+                p.setBackground(C_HOVER);
+                left.setBackground(C_HOVER);
+                textos.setBackground(C_HOVER);
+                fila1.setBackground(C_HOVER);
             }
 
             public void mouseExited(MouseEvent e) {
                 p.setBackground(C_WHITE);
                 left.setBackground(C_WHITE);
                 textos.setBackground(C_WHITE);
-                nr.setBackground(C_WHITE);
+                fila1.setBackground(C_WHITE);
             }
         });
         return p;
@@ -2699,16 +2725,26 @@ public class VentanaPrincipal extends JFrame {
     }
 
     private void abrirDialogoEditarPerfil() {
+        JPanel glass = mostrarOverlay();
         JDialog d = new JDialog(this, "Editar perfil", true);
-        d.setSize(420, 360);
+        d.setUndecorated(true);
+        d.setSize(520, 450);
         d.setLocationRelativeTo(this);
         d.setLayout(new BorderLayout());
         d.getContentPane().setBackground(C_WHITE);
+        d.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosed(WindowEvent e) {
+                quitarOverlay(glass);
+            }
+        });
         d.add(buildDialogHeader("Editar perfil", d), BorderLayout.NORTH);
+
         JPanel body = new JPanel();
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
         body.setBackground(C_WHITE);
         body.setBorder(BorderFactory.createEmptyBorder(20, 24, 20, 24));
+
         JLabel lN = new JLabel("Nombre completo");
         lN.setFont(F_SMALL);
         lN.setForeground(C_TEXT_LIGHT);
@@ -2722,19 +2758,22 @@ public class VentanaPrincipal extends JFrame {
         tP.setBackground(C_FIELD);
         tP.setFont(F_REGULAR);
         tP.setBorder(BorderFactory.createCompoundBorder(new LineBorder(C_BORDER, 1, true), BorderFactory.createEmptyBorder(9, 12, 9, 12)));
+
         JButton bF = buildSecondaryBtn("Cambiar foto de perfil");
         final String[] nF = {null};
         bF.addActionListener(e -> {
             JFileChooser fc = new JFileChooser();
             fc.setFileFilter(new FileNameExtensionFilter("Imágenes", "jpg", "png", "jpeg"));
             if (fc.showOpenDialog(d) == JFileChooser.APPROVE_OPTION) {
-                String r = sistema.procesarImagenPerfil(fc.getSelectedFile(), sistema.getUsuarioActual().getUsername(), "profile_" + System.currentTimeMillis());
+                String r = sistema.procesarImagenPerfil(fc.getSelectedFile(),
+                        sistema.getUsuarioActual().getUsername(), "profile_" + System.currentTimeMillis());
                 if (r != null) {
                     nF[0] = r;
                     bF.setText("✓ Foto seleccionada");
                 }
             }
         });
+
         body.add(lN);
         body.add(Box.createVerticalStrut(4));
         body.add(tN);
@@ -2745,6 +2784,7 @@ public class VentanaPrincipal extends JFrame {
         body.add(Box.createVerticalStrut(16));
         body.add(bF);
         d.add(body, BorderLayout.CENTER);
+
         JPanel ft = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 12));
         ft.setBackground(C_WHITE);
         ft.setBorder(new MatteBorder(1, 0, 0, 0, C_BORDER));
@@ -2753,6 +2793,7 @@ public class VentanaPrincipal extends JFrame {
         ft.add(bC);
         ft.add(bS);
         d.add(ft, BorderLayout.SOUTH);
+
         bC.addActionListener(e -> d.dispose());
         bS.addActionListener(e -> {
             String nom = tN.getText().trim();
@@ -2773,7 +2814,6 @@ public class VentanaPrincipal extends JFrame {
             }
         });
         d.setVisible(true);
-        d.setUndecorated(true);
     }
 
     private void mostrarListaUsuarios(ArrayList<String> usuarios, String titulo, String tipo) {
@@ -2781,63 +2821,114 @@ public class VentanaPrincipal extends JFrame {
             InstaDialog.showMessage(this, "La lista está vacía.");
             return;
         }
+
+        JPanel glass = mostrarOverlay();
         JDialog d = new JDialog(this, titulo, true);
+        d.setUndecorated(true);
         d.setSize(360, 520);
         d.setLocationRelativeTo(this);
         d.setLayout(new BorderLayout());
         d.getContentPane().setBackground(C_WHITE);
+        d.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosed(WindowEvent e) {
+                quitarOverlay(glass);
+            }
+        });
         d.add(buildDialogHeader(titulo, d), BorderLayout.NORTH);
+
         JPanel list = new JPanel();
         list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
         list.setBackground(C_WHITE);
         list.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
         ArrayList<String> inv = new ArrayList<>(usuarios);
         Collections.reverse(inv);
-        boolean esF = "Followers".equals(tipo);
+        boolean esFollowers = "Followers".equals(tipo);
+
         for (String usr : inv) {
-            JPanel row = new JPanel(new BorderLayout());
+            JPanel row = new JPanel(new BorderLayout(10, 0));
             row.setBackground(C_WHITE);
-            row.setMaximumSize(new Dimension(340, 60));
-            row.setBorder(BorderFactory.createCompoundBorder(new LineBorder(C_BORDER, 1, true), BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+            row.setMaximumSize(new Dimension(340, 62));
+            row.setBorder(BorderFactory.createCompoundBorder(
+                    new LineBorder(C_BORDER, 1, true),
+                    BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+
             JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
             left.setBackground(C_WHITE);
             left.add(new JLabel(cargarFotoCircular(usr, 36)));
             JLabel lbl = new JLabel(usr);
             lbl.setFont(F_BOLD);
             lbl.setForeground(C_TEXT);
+            lbl.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            lbl.addMouseListener(click(() -> {
+                d.dispose();
+                cargarVistaPerfil(usr);
+            }));
             left.add(lbl);
+            left.add(badgeVerificado(usr));
             row.add(left, BorderLayout.WEST);
-            JButton btn;
-            if (esF) {
-                btn = buildSecondaryBtn("Eliminar");
-                btn.setPreferredSize(new Dimension(90, 30));
-                btn.addActionListener(e -> {
-                    boolean yes = InstaDialog.showConfirm(d, "¿Eliminar a " + usr + "?", "Eliminar", true);
+
+            JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+            rightPanel.setBackground(C_WHITE);
+
+            if (esFollowers) {
+                JButton btnElim = new JButton();
+                if (iconsNormal.containsKey("Close")) {
+                    btnElim.setIcon(iconsNormal.get("Close"));
+                } else {
+                    btnElim.setText("✕");
+                    btnElim.setFont(F_SMALL);
+                }
+                btnElim.setToolTipText("Eliminar seguidor");
+                btnElim.setBorderPainted(false);
+                btnElim.setContentAreaFilled(false);
+                btnElim.setFocusPainted(false);
+                btnElim.setCursor(new Cursor(Cursor.HAND_CURSOR));
+                btnElim.setForeground(C_ERROR);
+                btnElim.addActionListener(e -> {
+                    boolean yes = InstaDialog.showConfirm(d,
+                            "¿Eliminar a " + usr + " de tus seguidores?", "Eliminar", true);
                     if (yes) {
                         sistema.eliminarSeguidor(usr);
                         d.dispose();
-                        mostrarListaUsuarios(sistema.getListaFollowers(sistema.getUsuarioActual().getUsername()), "Seguidores", "Followers");
+                        mostrarListaUsuarios(
+                                sistema.getListaFollowers(sistema.getUsuarioActual().getUsername()),
+                                "Seguidores", "Followers");
                         cargarVistaPerfil(sistema.getUsuarioActual().getUsername());
                     }
                 });
+                rightPanel.add(btnElim);
             } else {
-                btn = buildPrimaryBtn("Ver perfil");
-                btn.setPreferredSize(new Dimension(100, 30));
-                btn.addActionListener(e -> {
+                JButton btnVer = buildPrimaryBtn("Ver perfil");
+                btnVer.setPreferredSize(new Dimension(100, 30));
+                btnVer.addActionListener(e -> {
                     d.dispose();
                     cargarVistaPerfil(usr);
                 });
+                rightPanel.add(btnVer);
             }
-            JPanel rp = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-            rp.setBackground(C_WHITE);
-            rp.add(btn);
-            row.add(rp, BorderLayout.EAST);
+            row.add(rightPanel, BorderLayout.EAST);
+
+            row.addMouseListener(new MouseAdapter() {
+                public void mouseEntered(MouseEvent e) {
+                    row.setBackground(C_HOVER);
+                    left.setBackground(C_HOVER);
+                    rightPanel.setBackground(C_HOVER);
+                }
+
+                public void mouseExited(MouseEvent e) {
+                    row.setBackground(C_WHITE);
+                    left.setBackground(C_WHITE);
+                    rightPanel.setBackground(C_WHITE);
+                }
+            });
             list.add(row);
             list.add(Box.createVerticalStrut(6));
         }
+
         d.add(styledScroll(list), BorderLayout.CENTER);
         d.setVisible(true);
-        d.setUndecorated(true);
     }
 
     private void cargarVistaBusquedaHashtag(String hashtag) {
@@ -3268,5 +3359,32 @@ public class VentanaPrincipal extends JFrame {
         } catch (Exception e) {
             return "";
         }
+    }
+    // ── Glasspane helper ────────────────────────────────────────
+
+    private JPanel mostrarOverlay() {
+        JPanel glass = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setColor(new Color(0, 0, 0, 150));
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.dispose();
+            }
+        };
+        glass.setOpaque(false);
+        glass.addMouseListener(new MouseAdapter() {
+        }); // bloquea clicks
+        setGlassPane(glass);
+        glass.setVisible(true);
+        return glass;
+    }
+
+    private void quitarOverlay(JPanel glass) {
+        glass.setVisible(false);
+        JPanel blank = new JPanel();
+        blank.setOpaque(false);
+        setGlassPane(blank);
+        repaint();
     }
 }
