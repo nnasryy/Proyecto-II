@@ -296,41 +296,39 @@ public class Sistema implements Interaccion, Mensajeria {
     }
 
     // ── TIMELINE ────────────────────────────────────────────────
-    public ArrayList<Publicacion> getTimeline() {
-        ArrayList<Publicacion> timeline = new ArrayList<>();
-        if (usuarioActual == null) return timeline;
+public ArrayList<Publicacion> getTimeline() {
+    ArrayList<Publicacion> timeline = new ArrayList<>();
+    if (usuarioActual == null) return timeline;
 
-        leerPublicacionesUsuario(usuarioActual.getUsername(), timeline);
+    // 1. Siempre incluir posts propios
+    leerPublicacionesUsuario(usuarioActual.getUsername(), timeline);
 
-        boolean sigueAAlguienReal = false;
-        File fFollowing = new File(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins");
-
-        if (fFollowing.exists()) {
-            try (Scanner sc = new Scanner(fFollowing)) {
-                while (sc.hasNextLine()) {
-                    String u = sc.nextLine().trim();
-                    if (u.isEmpty()) continue;
-                    leerPublicacionesUsuario(u, timeline);
-                    boolean esDefault = false;
-                    for (String def : InicializadorCuentasDefault.USERNAMES_DEFAULT)
-                        if (def.equals(u)) { esDefault = true; break; }
-                    if (!esDefault) sigueAAlguienReal = true;
-                }
-            } catch (Exception e) { e.printStackTrace(); }
-        }
-
-        if (!sigueAAlguienReal) {
-            for (String def : InicializadorCuentasDefault.USERNAMES_DEFAULT) {
-                boolean yaLoSigue = fFollowing.exists()
-                    && verificarEnArchivo(fFollowing.getPath(), def);
-                if (!yaLoSigue) leerPublicacionesUsuario(def, timeline);
-            }
-        }
-
-        timeline.sort(Comparator.comparing(Publicacion::getFecha)
-                .thenComparing(Publicacion::getHora).reversed());
-        return timeline;
+    // 2. Siempre incluir cuentas default
+    for (String def : InicializadorCuentasDefault.USERNAMES_DEFAULT) {
+        leerPublicacionesUsuario(def, timeline);
     }
+
+    // 3. Incluir cuentas que sigue (si no son ya defaults)
+    File fFollowing = new File(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins");
+    if (fFollowing.exists()) {
+        try (Scanner sc = new Scanner(fFollowing)) {
+            while (sc.hasNextLine()) {
+                String u = sc.nextLine().trim();
+                if (u.isEmpty()) continue;
+                // Evitar duplicar defaults que ya sigue
+                boolean esDefault = false;
+                for (String def : InicializadorCuentasDefault.USERNAMES_DEFAULT)
+                    if (def.equals(u)) { esDefault = true; break; }
+                if (!esDefault) leerPublicacionesUsuario(u, timeline);
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    // 4. Ordenar más reciente primero
+    timeline.sort(Comparator.comparing(Publicacion::getFecha)
+            .thenComparing(Publicacion::getHora).reversed());
+    return timeline;
+}
 
     private void leerPublicacionesUsuario(String username, ArrayList<Publicacion> lista) {
         // No mostrar publicaciones de cuentas desactivadas (excepto la propia)
@@ -1017,4 +1015,11 @@ public class Sistema implements Interaccion, Mensajeria {
         catch (ClassNotFoundException e) { System.out.println("Clase no encontrada en binario."); }
         return new ArrayList<>();
     }
+    
+    public void marcarNotificacionesVistas() {
+    if (usuarioActual == null) return;
+    String ruta = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/notifications.ins";
+    reescribirArchivo(ruta, new ArrayList<>());
+}
+    
 }

@@ -30,7 +30,7 @@ public abstract class Mensaje implements Serializable {
     public static Mensaje fromFileString(String linea) {
         try {
             // NUEVO FORMATO: EMISOR|RECEPTOR|TIPO|ESTADO|FECHA|HORA|CONTENIDO
-            String[] datos = linea.split("\\|");
+            String[] datos = linea.split("\\|",7);
             if (datos.length < 7) return null; 
 
             String emisor = datos[0];
