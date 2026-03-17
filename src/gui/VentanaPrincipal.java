@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import red.ClienteSocket;
 
 public class VentanaPrincipal extends JFrame {
 
@@ -33,6 +34,7 @@ public class VentanaPrincipal extends JFrame {
     private int lastFeedCount = 0;
     private Timer globalTimer;
     private String lastMessageSignature = "";
+    private ClienteSocket clienteSocket = new ClienteSocket();
 
     private static final Color C_WHITE = Color.WHITE;
     private static final Color C_BG = new Color(250, 250, 250);
@@ -565,6 +567,7 @@ public class VentanaPrincipal extends JFrame {
         });
         feedTimer.start();
         iniciarTimerGlobal();
+        conectarSocket();
         revalidate();
         repaint();
     }
@@ -1115,6 +1118,9 @@ public class VentanaPrincipal extends JFrame {
             }
             String rf = sistema.procesarYGuardarImagen(new File(ruta[0]), sistema.getUsuarioActual().getUsername(), "post_" + System.currentTimeMillis());
             if (rf != null && sistema.crearPublicacion(texto, rf, ht.toString().trim(), mn.toString().trim())) {
+                clienteSocket.enviar(new red.EventoSocket( // ← agregar
+                        red.EventoSocket.Tipo.NUEVO_POST,
+                        sistema.getUsuarioActual().getUsername(), null));
                 d.dispose();
                 cargarVistaFeed();
             } else {
@@ -1180,8 +1186,12 @@ public class VentanaPrincipal extends JFrame {
             if (globalTimer != null) {
                 globalTimer.stop();
             }
+            clienteSocket.desconectar();
             sistema.logout();
-            inicializarComponentesLogin();
+            SwingUtilities.invokeLater(() -> {
+                limpiarOverlaysActivos();
+                inicializarComponentesLogin();
+            });
         });
         return sidebar;
     }
@@ -1327,6 +1337,9 @@ public class VentanaPrincipal extends JFrame {
                 btnSeg = buildPrimaryBtn("Seguir");
                 btnSeg.addActionListener(e -> {
                     sistema.seguirUsuario(username);
+                    clienteSocket.enviar(new red.EventoSocket(
+                            red.EventoSocket.Tipo.CAMBIO_SEGUIDOR,
+                            sistema.getUsuarioActual().getUsername(), username));
                     cargarVistaPerfil(username);
                 });
             }
@@ -2251,6 +2264,9 @@ public class VentanaPrincipal extends JFrame {
         ActionListener send = e -> {
             if (!txtI.getText().isEmpty()) {
                 sistema.enviarMensaje(otro, txtI.getText(), "TEXTO");
+                clienteSocket.enviar(new red.EventoSocket(
+                        red.EventoSocket.Tipo.NUEVO_MENSAJE,
+                        sistema.getUsuarioActual().getUsername(), otro));
                 txtI.setText("");
                 lastMessageCount = 0;
                 lastMessageSignature = "";
@@ -2878,6 +2894,9 @@ public class VentanaPrincipal extends JFrame {
                 sistema.actualizarFotoPerfil(sistema.getUsuarioActual().getUsername(), nF[0]);
             }
             if (ok) {
+                clienteSocket.enviar(new red.EventoSocket(
+                        red.EventoSocket.Tipo.ACTUALIZACION_PERFIL,
+                        sistema.getUsuarioActual().getUsername(), null));
                 d.dispose();
                 cargarVistaPerfil(sistema.getUsuarioActual().getUsername());
             } else {
@@ -3476,5 +3495,48 @@ public class VentanaPrincipal extends JFrame {
         blank.setOpaque(false);
         setGlassPane(blank);
         repaint();
+    }
+
+    private void conectarSocket() {
+        clienteSocket.conectar(evento -> {
+            switch (evento.getTipo()) {
+                case NUEVO_POST:
+                    // Refrescar feed si estamos en Home
+                    if ("Home".equals(vistaActual)) {
+                        cargarVistaFeed();
+                    }
+                    break;
+                case NUEVO_MENSAJE:
+                    // Solo refrescar si el destino somos nosotros
+                    if (sistema.getUsuarioActual() != null
+                            && sistema.getUsuarioActual().getUsername().equals(evento.getUsuarioDestino())) {
+                        if ("Messages".equals(vistaActual)) {
+                            // El chatTimer ya refresca automáticamente
+                            lastMessageSignature = "";
+                        }
+                        // Actualizar punto azul en sidebar
+                        if (feedTimer != null) {
+                            buildSidebar();
+                        }
+                    }
+                    break;
+                case NUEVA_NOTIFICACION:
+                    if (sistema.getUsuarioActual() != null
+                            && sistema.getUsuarioActual().getUsername().equals(evento.getUsuarioDestino())) {
+                        if ("Notifications".equals(vistaActual)) {
+                            cargarVistaNotificaciones();
+                        } else {
+                            repaint(); // actualiza punto rojo en sidebar
+                        }
+                    }
+                    break;
+                case CAMBIO_SEGUIDOR:
+                case ACTUALIZACION_PERFIL:
+                    if ("Profile".equals(vistaActual) && sistema.getUsuarioActual() != null) {
+                        cargarVistaPerfil(sistema.getUsuarioActual().getUsername());
+                    }
+                    break;
+            }
+        });
     }
 }
