@@ -664,6 +664,11 @@ public class VentanaPrincipal extends JFrame {
         btnLike.addActionListener(ev -> {
             boolean estado = sistema.toggleLike(p.getAutor(), p.getFecha().toString(), p.getRutaImagen());
             actualizarLike(btnLike, estado);
+            if (estado) {
+                clienteSocket.enviar(new red.EventoSocket(
+                        red.EventoSocket.Tipo.NUEVA_NOTIFICACION,
+                        sistema.getUsuarioActual().getUsername(), p.getAutor()));
+            }
         });
         JButton btnComment = iconBtn("Comment", false);
         btnComment.addActionListener(ev -> abrirComentarios(p));
@@ -2336,7 +2341,11 @@ public class VentanaPrincipal extends JFrame {
                 }
                 bs.addActionListener(se -> {
                     sistema.enviarMensaje(otro, r, "STICKER");
+                    clienteSocket.enviar(new red.EventoSocket(
+                            red.EventoSocket.Tipo.NUEVO_MENSAJE,
+                            sistema.getUsuarioActual().getUsername(), otro));
                     lastMessageCount = 0;
+                    lastMessageSignature = ""; // ← agregar
                     refrescarMensajes(msgPanel, otro);
                     sd.dispose();
                 });
