@@ -1,55 +1,44 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package red;
 
 import instagram.Mensaje;
-import instagram.Sistema;
 import java.io.*;
 import java.net.Socket;
 
 public class HiloCliente extends Thread {
     private Socket socket;
-    private Sistema sistema;
+    private ObjectOutputStream salida;
 
-    // Constructor que recibe el socket y la instancia del sistema
-    public HiloCliente(Socket socket, Sistema sistema) {
+    public HiloCliente(Socket socket) {
         this.socket = socket;
-        this.sistema = sistema;
+    }
+
+    public void enviarEvento(EventoSocket evento) {
+        try {
+            if (salida != null) {
+                salida.writeObject(evento);
+                salida.flush();
+            }
+        } catch (IOException ignored) {}
     }
 
     @Override
     public void run() {
         try {
-            ObjectOutputStream salida = new ObjectOutputStream(socket.getOutputStream());
+            salida = new ObjectOutputStream(socket.getOutputStream());
             ObjectInputStream entrada = new ObjectInputStream(socket.getInputStream());
-
             Object objeto;
             while ((objeto = entrada.readObject()) != null) {
-                
-                if (objeto instanceof String) {
-                    String comando = (String) objeto;
-                    if (comando.startsWith("LOGIN:")) {
-                        String[] parts = comando.split(":");
-                        boolean ok = sistema.login(parts[1], parts[2]);
-                        salida.writeObject(ok);
-                        salida.flush();
-                    }
-                } else if (objeto instanceof Mensaje) {
-                    // Guardar mensaje usando el sistema
-                    sistema.guardarMensaje((Mensaje) objeto);
+                if (objeto instanceof EventoSocket) {
+                    // Reenviar a todos los demás clientes
+                    Servidor.broadcast((EventoSocket) objeto, this);
                 }
             }
         } catch (Exception e) {
-            // Error típico cuando un cliente se desconecta (no es crítico)
-            System.out.println("Cliente desconectado o error de comunicación.");
+            System.out.println("Cliente desconectado.");
         } finally {
-            try {
-                if (socket != null) socket.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            Servidor.clientes.remove(this);
+            try { if (socket != null) socket.close(); } 
+            catch (IOException ignored) {}
         }
     }
 }

@@ -8,17 +8,17 @@ import java.awt.geom.RoundRectangle2D;
 
 public class InstaDialog {
 
-    private static final Color BG        = Color.WHITE;
-    private static final Color BLUE      = new Color(64,  155, 230);
-    private static final Color DANGER    = new Color(237, 73,  86);
-    private static final Color DIVIDER   = new Color(219, 219, 219);
-    private static final Color TEXT_MAIN = new Color(38,  38,  38);
+    private static final Color BG = Color.WHITE;
+    private static final Color BLUE = new Color(64, 155, 230);
+    private static final Color DANGER = new Color(237, 73, 86);
+    private static final Color DIVIDER = new Color(219, 219, 219);
+    private static final Color TEXT_MAIN = new Color(38, 38, 38);
     private static final Color TEXT_GRAY = new Color(142, 142, 142);
-    private static final Color OVERLAY   = new Color(0, 0, 0, 100);
-    private static final Font  FONT_TITLE = new Font("Arial", Font.BOLD,  15);
-    private static final Font  FONT_BODY  = new Font("Arial", Font.PLAIN, 13);
-    private static final Font  FONT_BTN   = new Font("Arial", Font.BOLD,  13);
-    private static final int   RADIUS     = 14;
+    private static final Color OVERLAY = new Color(0, 0, 0, 100);
+    private static final Font FONT_TITLE = new Font("Arial", Font.BOLD, 15);
+    private static final Font FONT_BODY = new Font("Arial", Font.PLAIN, 13);
+    private static final Font FONT_BTN = new Font("Arial", Font.BOLD, 13);
+    private static final int RADIUS = 14;
 
     // ── MENSAJE SIMPLE ───────────────────────────────────────────
     public static void showMessage(Component parent, String message) {
@@ -31,8 +31,8 @@ public class InstaDialog {
         card.setLayout(new BorderLayout());
 
         JLabel lbl = new JLabel(
-            "<html><div style='text-align:center;'>" + htmlSafe(message) + "</div></html>",
-            SwingConstants.CENTER);
+                "<html><div style='text-align:center;'>" + htmlSafe(message) + "</div></html>",
+                SwingConstants.CENTER);
         lbl.setFont(FONT_BODY);
         lbl.setForeground(TEXT_MAIN);
         lbl.setBorder(BorderFactory.createEmptyBorder(22, 18, 10, 18));
@@ -47,24 +47,27 @@ public class InstaDialog {
 
     // ── CONFIRMACIÓN ─────────────────────────────────────────────
     public static boolean showConfirm(Component parent, String message,
-                                      String yesLabel, boolean dangerYes) {
+            String yesLabel, boolean dangerYes) {
         boolean[] result = {false};
         JDialog d = buildBase(parent, 320, 175);
         JPanel card = buildCard(300, 155);
         card.setLayout(new BorderLayout());
 
         JLabel lbl = new JLabel(
-            "<html><div style='text-align:center;'>" + htmlSafe(message) + "</div></html>",
-            SwingConstants.CENTER);
+                "<html><div style='text-align:center;'>" + htmlSafe(message) + "</div></html>",
+                SwingConstants.CENTER);
         lbl.setFont(FONT_BODY);
         lbl.setForeground(TEXT_MAIN);
         lbl.setBorder(BorderFactory.createEmptyBorder(24, 18, 10, 18));
         card.add(lbl, BorderLayout.CENTER);
 
         JButton btnYes = makeButton(yesLabel, dangerYes ? DANGER : BLUE, Color.WHITE);
-        JButton btnNo  = makeButton("Cancelar", new Color(248, 248, 248), TEXT_MAIN);
-        btnYes.addActionListener(e -> { result[0] = true; d.dispose(); });
-        btnNo.addActionListener(e  -> d.dispose());
+        JButton btnNo = makeButton("Cancelar", new Color(248, 248, 248), TEXT_MAIN);
+        btnYes.addActionListener(e -> {
+            result[0] = true;
+            d.dispose();
+        });
+        btnNo.addActionListener(e -> d.dispose());
         card.add(buildSouthPair(btnNo, btnYes), BorderLayout.SOUTH);
 
         show(d, card, parent);
@@ -91,11 +94,13 @@ public class InstaDialog {
         mid.add(txt, BorderLayout.CENTER);
         card.add(mid, BorderLayout.CENTER);
 
-        JButton ok  = makeButton("Aceptar",  BLUE, Color.WHITE);
+        JButton ok = makeButton("Aceptar", BLUE, Color.WHITE);
         JButton can = makeButton("Cancelar", new Color(248, 248, 248), TEXT_MAIN);
         ok.addActionListener(e -> {
             String val = txt.getText().trim();
-            if (!val.isEmpty() && !val.equals(placeholder)) result[0] = val;
+            if (!val.isEmpty() && !val.equals(placeholder)) {
+                result[0] = val;
+            }
             d.dispose();
         });
         can.addActionListener(e -> d.dispose());
@@ -111,23 +116,26 @@ public class InstaDialog {
     // ════════════════════════════════════════════════════════════
     private static JDialog buildBase(Component parent, int w, int h) {
         Frame owner = findFrame(parent);
-        JDialog d   = new JDialog(owner, true);
+        JDialog d = new JDialog(owner, true);
         d.setUndecorated(true);
         try {
             d.getRootPane().setOpaque(false);
             d.getContentPane().setBackground(new Color(0, 0, 0, 0));
             d.setBackground(new Color(0, 0, 0, 0));
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
 
         d.setSize(w, h);
         d.setLocationRelativeTo(parent);
 
         d.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
-            .put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "esc_close");
+                .put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "esc_close");
         d.getRootPane().getActionMap()
-            .put("esc_close", new AbstractAction() {
-                public void actionPerformed(ActionEvent e) { d.dispose(); }
-            });
+                .put("esc_close", new AbstractAction() {
+                    public void actionPerformed(ActionEvent e) {
+                        d.dispose();
+                    }
+                });
         return d;
     }
 
@@ -140,7 +148,8 @@ public class InstaDialog {
         if (frame != null) {
             oldGlass = frame.getGlassPane();
             glass = new JPanel() {
-                @Override protected void paintComponent(Graphics g) {
+                @Override
+                protected void paintComponent(Graphics g) {
                     Graphics2D g2 = (Graphics2D) g.create();
                     g2.setColor(new Color(0, 0, 0, 150));
                     g2.fillRect(0, 0, getWidth(), getHeight());
@@ -148,14 +157,16 @@ public class InstaDialog {
                 }
             };
             glass.setOpaque(false);
-            glass.addMouseListener(new MouseAdapter() {}); // bloquea clicks
+            glass.addMouseListener(new MouseAdapter() {
+            }); // bloquea clicks
             frame.setGlassPane(glass);
             glass.setVisible(true);
         }
 
         // ── Contenido del diálogo ──
         JPanel root = new JPanel(new GridBagLayout()) {
-            @Override protected void paintComponent(Graphics g) {
+            @Override
+            protected void paintComponent(Graphics g) {
                 // fondo transparente — el oscurecido lo hace el glasspane
             }
         };
@@ -166,16 +177,34 @@ public class InstaDialog {
 
         // ── Al cerrar: quitar glasspane ──
         final Component finalOldGlass = oldGlass;
-        final JPanel   finalGlass     = glass;
-        final JFrame   finalFrame     = frame;
+        final JPanel finalGlass = glass;
+        final JFrame finalFrame = frame;
         d.addWindowListener(new WindowAdapter() {
-            @Override public void windowClosed(WindowEvent e) {
-                if (finalFrame != null && finalGlass != null) {
-                    finalGlass.setVisible(false);
-                    finalFrame.setGlassPane(finalOldGlass != null
-                        ? finalOldGlass
-                        : new JPanel() {{ setOpaque(false); }});
+            private void cleanup() {
+                if (finalFrame != null) {
+                    if (finalGlass != null) {
+                        finalGlass.setVisible(false);
+                    }
+                    JPanel blank = new JPanel();
+                    blank.setOpaque(false);
+                    finalFrame.setGlassPane(blank);
+                    finalFrame.repaint();
                 }
+            }
+
+            @Override
+            public void windowClosed(WindowEvent e) {
+                cleanup();
+            }
+
+            @Override
+            public void windowClosing(WindowEvent e) {
+                cleanup();
+            }
+
+            @Override
+            public void windowDeactivated(WindowEvent e) {
+                cleanup();
             }
         });
 
@@ -186,21 +215,31 @@ public class InstaDialog {
     //  HELPERS
     // ════════════════════════════════════════════════════════════
     private static Frame findFrame(Component c) {
-        if (c instanceof Frame) return (Frame) c;
+        if (c instanceof Frame) {
+            return (Frame) c;
+        }
         Window w = (c instanceof Window) ? (Window) c : SwingUtilities.getWindowAncestor(c);
         while (w != null) {
-            if (w instanceof Frame) return (Frame) w;
+            if (w instanceof Frame) {
+                return (Frame) w;
+            }
             w = w.getOwner();
         }
         return null;
     }
 
-    /** Busca el JFrame raíz para el glasspane. */
+    /**
+     * Busca el JFrame raíz para el glasspane.
+     */
     private static JFrame findJFrame(Component c) {
-        if (c instanceof JFrame) return (JFrame) c;
+        if (c instanceof JFrame) {
+            return (JFrame) c;
+        }
         Window w = (c instanceof Window) ? (Window) c : SwingUtilities.getWindowAncestor(c);
         while (w != null) {
-            if (w instanceof JFrame) return (JFrame) w;
+            if (w instanceof JFrame) {
+                return (JFrame) w;
+            }
             w = w.getOwner();
         }
         return null;
@@ -208,13 +247,14 @@ public class InstaDialog {
 
     private static JPanel buildCard(int w, int h) {
         JPanel card = new JPanel() {
-            @Override protected void paintComponent(Graphics g) {
+            @Override
+            protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.setColor(new Color(0, 0, 0, 28));
-                g2.fill(new RoundRectangle2D.Double(3, 4, getWidth()-3, getHeight()-3, RADIUS*2, RADIUS*2));
+                g2.fill(new RoundRectangle2D.Double(3, 4, getWidth() - 3, getHeight() - 3, RADIUS * 2, RADIUS * 2));
                 g2.setColor(BG);
-                g2.fill(new RoundRectangle2D.Double(0, 0, getWidth()-2, getHeight()-2, RADIUS*2, RADIUS*2));
+                g2.fill(new RoundRectangle2D.Double(0, 0, getWidth() - 2, getHeight() - 2, RADIUS * 2, RADIUS * 2));
                 g2.dispose();
             }
         };
@@ -225,9 +265,11 @@ public class InstaDialog {
 
     private static JPanel buildSouthSingle(JButton btn) {
         JSeparator sep = new JSeparator();
-        sep.setForeground(DIVIDER); sep.setBackground(DIVIDER);
+        sep.setForeground(DIVIDER);
+        sep.setBackground(DIVIDER);
         JPanel row = new JPanel(new GridLayout(1, 1));
-        row.setBackground(BG); row.add(btn);
+        row.setBackground(BG);
+        row.add(btn);
         JPanel s = new JPanel(new BorderLayout());
         s.setBackground(BG);
         s.add(sep, BorderLayout.NORTH);
@@ -237,18 +279,26 @@ public class InstaDialog {
 
     private static JPanel buildSouthPair(JButton left, JButton right) {
         JSeparator top = new JSeparator();
-        top.setForeground(DIVIDER); top.setBackground(DIVIDER);
-        JPanel lw = new JPanel(new GridLayout(1,1)); lw.setBackground(BG); lw.add(left);
+        top.setForeground(DIVIDER);
+        top.setBackground(DIVIDER);
+        JPanel lw = new JPanel(new GridLayout(1, 1));
+        lw.setBackground(BG);
+        lw.add(left);
         lw.setPreferredSize(new Dimension(159, 44));
-        JPanel rw = new JPanel(new GridLayout(1,1)); rw.setBackground(BG); rw.add(right);
+        JPanel rw = new JPanel(new GridLayout(1, 1));
+        rw.setBackground(BG);
+        rw.add(right);
         rw.setPreferredSize(new Dimension(159, 44));
         JSeparator vs = new JSeparator(SwingConstants.VERTICAL);
-        vs.setPreferredSize(new Dimension(1, 44)); vs.setForeground(DIVIDER);
-        JPanel pair = new JPanel(new BorderLayout()); pair.setBackground(BG);
+        vs.setPreferredSize(new Dimension(1, 44));
+        vs.setForeground(DIVIDER);
+        JPanel pair = new JPanel(new BorderLayout());
+        pair.setBackground(BG);
         pair.add(lw, BorderLayout.WEST);
         pair.add(vs, BorderLayout.CENTER);
         pair.add(rw, BorderLayout.EAST);
-        JPanel s = new JPanel(new BorderLayout()); s.setBackground(BG);
+        JPanel s = new JPanel(new BorderLayout());
+        s.setBackground(BG);
         s.add(top, BorderLayout.NORTH);
         s.add(pair, BorderLayout.CENTER);
         return s;
@@ -256,7 +306,8 @@ public class InstaDialog {
 
     private static JButton makeButton(String text, Color bg, Color fg) {
         JButton b = new JButton(text) {
-            @Override protected void paintComponent(Graphics g) {
+            @Override
+            protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.setColor(getModel().isPressed() ? bg.darker() : bg);
@@ -265,9 +316,13 @@ public class InstaDialog {
                 super.paintComponent(g);
             }
         };
-        b.setFont(FONT_BTN); b.setForeground(fg); b.setBackground(bg);
-        b.setBorderPainted(false); b.setFocusPainted(false);
-        b.setContentAreaFilled(false); b.setOpaque(false);
+        b.setFont(FONT_BTN);
+        b.setForeground(fg);
+        b.setBackground(bg);
+        b.setBorderPainted(false);
+        b.setFocusPainted(false);
+        b.setContentAreaFilled(false);
+        b.setOpaque(false);
         b.setPreferredSize(new Dimension(0, 44));
         b.setCursor(new Cursor(Cursor.HAND_CURSOR));
         return b;
@@ -275,27 +330,38 @@ public class InstaDialog {
 
     private static JTextField buildInputField(String placeholder) {
         JTextField txt = new JTextField();
-        txt.setFont(FONT_BODY); txt.setText(placeholder); txt.setForeground(TEXT_GRAY);
+        txt.setFont(FONT_BODY);
+        txt.setText(placeholder);
+        txt.setForeground(TEXT_GRAY);
         txt.setBackground(new Color(250, 250, 250));
         txt.setBorder(BorderFactory.createCompoundBorder(
-            new LineBorder(DIVIDER, 1, true),
-            BorderFactory.createEmptyBorder(8, 12, 8, 12)));
+                new LineBorder(DIVIDER, 1, true),
+                BorderFactory.createEmptyBorder(8, 12, 8, 12)));
         txt.addFocusListener(new FocusAdapter() {
             public void focusGained(FocusEvent e) {
-                if (txt.getText().equals(placeholder)) { txt.setText(""); txt.setForeground(TEXT_MAIN); }
+                if (txt.getText().equals(placeholder)) {
+                    txt.setText("");
+                    txt.setForeground(TEXT_MAIN);
+                }
             }
+
             public void focusLost(FocusEvent e) {
-                if (txt.getText().isEmpty()) { txt.setText(placeholder); txt.setForeground(TEXT_GRAY); }
+                if (txt.getText().isEmpty()) {
+                    txt.setText(placeholder);
+                    txt.setForeground(TEXT_GRAY);
+                }
             }
         });
         return txt;
     }
 
     private static String htmlSafe(String text) {
-        if (text == null) return "";
+        if (text == null) {
+            return "";
+        }
         return text.replace("&", "&amp;")
-                   .replace("<", "&lt;")
-                   .replace(">", "&gt;")
-                   .replace("\n", "<br>");
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\n", "<br>");
     }
 }

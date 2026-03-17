@@ -210,7 +210,7 @@ public class Sistema implements Interaccion, Mensajeria {
     // ══════════════════════════════════════════════════════════════
     public boolean registrarUsuario(String username, String password, String nombreCompleto,
             char genero, int edad, String fotoPerfil, TipoCuenta tipoCuenta) {
-        if (existeUsername(username)) {
+        if (!usernameDisponible(username)) {
             return false;
         }
         Usuario nuevo = new Usuario(username, password, nombreCompleto, genero, edad,
@@ -222,6 +222,14 @@ public class Sistema implements Interaccion, Mensajeria {
                     + nuevo.getFechaRegistro().format(DateTimeFormatter.ISO_LOCAL_DATE) + "|"
                     + nuevo.getTipoCuenta().name() + "|" + nuevo.getEstadoCuenta().name() + "\n");
             crearEstructuraUsuario(username);
+            for (String def : InicializadorCuentasDefault.USERNAMES_DEFAULT) {
+                if (existeUsername(def)) {
+                    String myFollowing = RUTA_RAIZ + "/" + username + "/following.ins";
+                    String theirFollowers = RUTA_RAIZ + "/" + def + "/followers.ins";
+                    appendLine(myFollowing, def);
+                    appendLine(theirFollowers, username);
+                }
+            }
             invalidarCache();
             return true;
         } catch (IOException e) {
@@ -289,6 +297,12 @@ public class Sistema implements Interaccion, Mensajeria {
         new File(base + "/folders_personales").mkdir();
     }
 
+    public boolean usernameDisponible(String username) {
+        // Un username NO está disponible si ya existe, activo O desactivado
+        cargarCacheUsuarios();
+        return !cacheUsuarios.contiene(username);
+    }
+
     // ══════════════════════════════════════════════════════════════
     //  BÚSQUEDA — usa ListaUsuarios (recursividad)
     // ══════════════════════════════════════════════════════════════
@@ -308,7 +322,10 @@ public class Sistema implements Interaccion, Mensajeria {
         }
         cargarCacheUsuarios();
         String excluir = usuarioActual != null ? usuarioActual.getUsername() : null;
-        return cacheUsuarios.buscarPorCriterio(criterio, excluir);
+        ArrayList<Usuario> resultado = cacheUsuarios.buscarPorCriterio(criterio, excluir);
+        // Filtrar desactivadas
+        resultado.removeIf(u -> u.getEstadoCuenta() == EstadoCuenta.DESACTIVADO);
+        return resultado;
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -384,60 +401,79 @@ public class Sistema implements Interaccion, Mensajeria {
     }
 
     // ── TIMELINE ────────────────────────────────────────────────
-  public ArrayList<Publicacion> getTimeline() {
-    ArrayList<Publicacion> timeline = new ArrayList<>();
-    if (usuarioActual == null) return timeline;
-
-    java.util.Set<String> vistos = new java.util.HashSet<>();
-
-    // Helper para agregar sin duplicados
-    java.util.function.Consumer<String> agregarPosts = (username) -> {
-        if (username == null || username.isEmpty()) return;
-        // No mostrar posts de cuentas desactivadas (excepto la propia)
-        if (!username.equals(usuarioActual.getUsername())) {
-            Usuario u = buscarUsuario(username);
-            if (u != null && u.getEstadoCuenta() == EstadoCuenta.DESACTIVADO) return;
+    public ArrayList<Publicacion> getTimeline() {
+        ArrayList<Publicacion> timeline = new ArrayList<>();
+        if (usuarioActual == null) {
+            return timeline;
         }
-        File archivo = new File(RUTA_RAIZ + "/" + username + "/insta.ins");
-        if (!archivo.exists()) return;
-        try (Scanner sc = new Scanner(archivo)) {
-            while (sc.hasNextLine()) {
-                String linea = sc.nextLine();
-                if (linea.trim().isEmpty()) continue;
-                Publicacion p = Publicacion.fromFileString(linea);
-                if (p != null) {
-                    // ID único por autor + fecha + hora
-                    String id = p.getAutor() + "|" + p.getFecha() + "|" + p.getHora();
-                    if (vistos.add(id)) timeline.add(p); // add() devuelve false si ya existía
+
+        java.util.Set<String> vistos = new java.util.HashSet<>();
+
+        // Helper para agregar sin duplicados
+        java.util.function.Consumer<String> agregarPosts = (username) -> {
+            if (username == null || username.isEmpty()) {
+                return;
+            }
+            // No mostrar posts de cuentas desactivadas (excepto la propia)
+            if (!username.equals(usuarioActual.getUsername())) {
+                Usuario u = buscarUsuario(username);
+                if (u != null && u.getEstadoCuenta() == EstadoCuenta.DESACTIVADO) {
+                    return;
                 }
             }
-        } catch (Exception e) { e.printStackTrace(); }
-    };
-
-    // 1. Posts propios
-    agregarPosts.accept(usuarioActual.getUsername());
-
-    // 2. Siempre incluir cuentas default
-    for (String def : InicializadorCuentasDefault.USERNAMES_DEFAULT) {
-        agregarPosts.accept(def);
-    }
-
-    // 3. Cuentas que sigo (defaults ya están en el Set, no se duplican)
-    File fFollowing = new File(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins");
-    if (fFollowing.exists()) {
-        try (Scanner sc = new Scanner(fFollowing)) {
-            while (sc.hasNextLine()) {
-                String u = sc.nextLine().trim();
-                if (!u.isEmpty()) agregarPosts.accept(u);
+            File archivo = new File(RUTA_RAIZ + "/" + username + "/insta.ins");
+            if (!archivo.exists()) {
+                return;
             }
-        } catch (Exception e) { e.printStackTrace(); }
+            try (Scanner sc = new Scanner(archivo)) {
+                while (sc.hasNextLine()) {
+                    String linea = sc.nextLine();
+                    if (linea.trim().isEmpty()) {
+                        continue;
+                    }
+                    Publicacion p = Publicacion.fromFileString(linea);
+                    if (p != null) {
+                        // ID único por autor + fecha + hora
+                        String id = p.getAutor() + "|" + p.getFecha() + "|" + p.getHora();
+                        if (vistos.add(id)) {
+                            timeline.add(p); // add() devuelve false si ya existía
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        };
+
+        // 1. Posts propios
+        agregarPosts.accept(usuarioActual.getUsername());
+
+        // 2. Siempre incluir cuentas default
+        for (String def : InicializadorCuentasDefault.USERNAMES_DEFAULT) {
+            agregarPosts.accept(def);
+        }
+
+        // 3. Cuentas que sigo (defaults ya están en el Set, no se duplican)
+        File fFollowing = new File(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins");
+        if (fFollowing.exists()) {
+            try (Scanner sc = new Scanner(fFollowing)) {
+                while (sc.hasNextLine()) {
+                    String u = sc.nextLine().trim();
+                    if (!u.isEmpty()) {
+                        agregarPosts.accept(u);
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        // 4. Ordenar más reciente primero
+        timeline.sort(Comparator.comparing(Publicacion::getFecha)
+                .thenComparing(Publicacion::getHora).reversed());
+        return timeline;
     }
 
-    // 4. Ordenar más reciente primero
-    timeline.sort(Comparator.comparing(Publicacion::getFecha)
-            .thenComparing(Publicacion::getHora).reversed());
-    return timeline;
-}
     private void leerPublicacionesUsuario(String username, ArrayList<Publicacion> lista) {
         // No mostrar publicaciones de cuentas desactivadas (excepto la propia)
         if (usuarioActual != null && !username.equals(usuarioActual.getUsername())) {
@@ -515,13 +551,27 @@ public class Sistema implements Interaccion, Mensajeria {
         return contarLineas(RUTA_RAIZ + "/" + username + "/insta.ins");
     }
 
-    public int getCantidadFollowers(String username) {
-        return contarLineas(RUTA_RAIZ + "/" + username + "/followers.ins");
+   public int getCantidadFollowers(String username) {
+    ArrayList<String> lista = new ArrayList<>();
+    leerLineas(RUTA_RAIZ + "/" + username + "/followers.ins", lista);
+    int count = 0;
+    for (String u : lista) {
+        Usuario usr = buscarUsuario(u);
+        if (usr != null && usr.getEstadoCuenta() != EstadoCuenta.DESACTIVADO) count++;
     }
+    return count;
+}
 
-    public int getCantidadFollowing(String username) {
-        return contarLineas(RUTA_RAIZ + "/" + username + "/following.ins");
+public int getCantidadFollowing(String username) {
+    ArrayList<String> lista = new ArrayList<>();
+    leerLineas(RUTA_RAIZ + "/" + username + "/following.ins", lista);
+    int count = 0;
+    for (String u : lista) {
+        Usuario usr = buscarUsuario(u);
+        if (usr != null && usr.getEstadoCuenta() != EstadoCuenta.DESACTIVADO) count++;
     }
+    return count;
+}
 
     // ══════════════════════════════════════════════════════════════
     //  FOLLOWS Y SOLICITUDES
@@ -684,13 +734,15 @@ public class Sistema implements Interaccion, Mensajeria {
         return count;
     }
 
-public ArrayList<String> getNotificacionesLikes() {
-    ArrayList<String> notifs = new ArrayList<>();
-    if (usuarioActual == null) return notifs;
-    leerLineas(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/likes_notif.ins", notifs);
-    Collections.reverse(notifs);
-    return notifs;
-}
+    public ArrayList<String> getNotificacionesLikes() {
+        ArrayList<String> notifs = new ArrayList<>();
+        if (usuarioActual == null) {
+            return notifs;
+        }
+        leerLineas(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/likes_notif.ins", notifs);
+        Collections.reverse(notifs);
+        return notifs;
+    }
 
     // ══════════════════════════════════════════════════════════════
     //  COMENTARIOS
@@ -1221,6 +1273,25 @@ public ArrayList<String> getNotificacionesLikes() {
         return menciones;
     }
 
+    //SINCRONIZACION DE FOLLOWERS
+    public void sincronizarDefaultsAlLogin() {
+        if (usuarioActual == null) {
+            return;
+        }
+        for (String def : InicializadorCuentasDefault.USERNAMES_DEFAULT) {
+            if (!existeUsername(def)) {
+                continue;
+            }
+            String myFollowing = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins";
+            String theirFollowers = RUTA_RAIZ + "/" + def + "/followers.ins";
+            // Solo agregar si no los sigue ya
+            if (!verificarEnArchivo(myFollowing, def)) {
+                appendLine(myFollowing, def);
+                appendLine(theirFollowers, usuarioActual.getUsername());
+            }
+        }
+    }
+
     // ══════════════════════════════════════════════════════════════
     //  PROCESAMIENTO DE IMÁGENES
     // ══════════════════════════════════════════════════════════════
@@ -1452,13 +1523,15 @@ public ArrayList<String> getNotificacionesLikes() {
         return new ArrayList<>();
     }
 
-public void marcarNotificacionesVistas() {
-    if (usuarioActual == null) return;
-    reescribirArchivo(
-        RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/notifications.ins", 
-        new ArrayList<>());
-    reescribirArchivo(
-        RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/likes_notif.ins",  
-        new ArrayList<>());
-}
+    public void marcarNotificacionesVistas() {
+        if (usuarioActual == null) {
+            return;
+        }
+        reescribirArchivo(
+                RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/notifications.ins",
+                new ArrayList<>());
+        reescribirArchivo(
+                RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/likes_notif.ins",
+                new ArrayList<>());
+    }
 }
