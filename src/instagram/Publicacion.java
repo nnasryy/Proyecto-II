@@ -44,6 +44,7 @@ public class Publicacion {
     }
 
 
+      
     public static Publicacion fromFileString(String linea) {
     try {
         String[] datos = linea.split("\\|", 8);

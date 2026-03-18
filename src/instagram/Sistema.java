@@ -81,6 +81,30 @@ public class Sistema implements Interaccion, Mensajeria {
         invalidarCache();
     }
 
+    private void limpiarArchivosInteraccion() {
+        File raiz = new File(RUTA_RAIZ);
+        String[] carpetas = raiz.list();
+        if (carpetas == null) {
+            return;
+        }
+        for (String carpeta : carpetas) {
+            File dir = new File(RUTA_RAIZ + "/" + carpeta);
+            if (!dir.isDirectory()) {
+                continue;
+            }
+            String[] limpiar = {"likes.ins", "comments.ins", "likes_notif.ins"};
+            for (String archivo : limpiar) {
+                File f = new File(dir, archivo);
+                if (f.exists()) {
+                    try (FileWriter fw = new FileWriter(f)) {
+                        fw.write("");
+                    } catch (IOException ignored) {
+                    }
+                }
+            }
+        }
+    }
+
     // ══════════════════════════════════════════════════════════════
     //  IMPLEMENTACIÓN Interaccion
     // ══════════════════════════════════════════════════════════════
@@ -287,22 +311,7 @@ public class Sistema implements Interaccion, Mensajeria {
         new File(base + "/stickers_personales").mkdir();
 
         // folders_personales con todos los .ins incluyendo stickers.ins
-        String baseFolder = base + "/folders_personales";
-        new File(baseFolder).mkdir();
-
-        String[] archivosFolder = {"followers.ins", "following.ins", "insta.ins", "inbox.ins",
-            "stickers.ins", "solicitudes.ins", "likes.ins", "comments.ins",
-            "notifications.ins", "likes_notif.ins"};
-        for (String a : archivosFolder) {
-            File fp = new File(baseFolder + "/" + a);
-            try {
-                if (!fp.exists()) {
-                    fp.createNewFile();
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
+        new File(base + "/folders_personales").mkdir();
     }
 
     public boolean usernameDisponible(String username) {
@@ -621,20 +630,20 @@ public class Sistema implements Interaccion, Mensajeria {
         return lista;
     }
 
-    public int getCantidadLikes(String autorPost, String fechaPost) {
+    public int getCantidadLikes(String autorPost, String postKey) {
         File f = new File(RUTA_RAIZ + "/" + autorPost + "/likes.ins");
         if (!f.exists()) {
             return 0;
         }
         int count = 0;
-        String prefijo = autorPost + "|" + fechaPost + "|";
+        String prefijo = postKey + "|";
         try (Scanner sc = new Scanner(f)) {
             while (sc.hasNextLine()) {
                 String linea = sc.nextLine().trim();
                 if (linea.startsWith(prefijo)) {
                     String[] partes = linea.split("\\|");
-                    if (partes.length >= 3) {
-                        Usuario u = buscarUsuario(partes[2]);
+                    if (partes.length >= 2) {
+                        Usuario u = buscarUsuario(partes[1]);
                         if (u != null && u.getEstadoCuenta() != EstadoCuenta.DESACTIVADO) {
                             count++;
                         }
@@ -714,15 +723,15 @@ public class Sistema implements Interaccion, Mensajeria {
     // ══════════════════════════════════════════════════════════════
     //  LIKES
     // ══════════════════════════════════════════════════════════════
-    public boolean yaDioLike(String autorPost, String fechaPost) {
+    public boolean yaDioLike(String autorPost, String postKey) {
         if (usuarioActual == null) {
             return false;
         }
-        String prefijo = autorPost + "|" + fechaPost + "|" + usuarioActual.getUsername();
         File f = new File(RUTA_RAIZ + "/" + autorPost + "/likes.ins");
         if (!f.exists()) {
             return false;
         }
+        String prefijo = postKey + "|" + usuarioActual.getUsername();
         try (Scanner sc = new Scanner(f)) {
             while (sc.hasNextLine()) {
                 if (sc.nextLine().trim().startsWith(prefijo)) {
@@ -734,17 +743,16 @@ public class Sistema implements Interaccion, Mensajeria {
         return false;
     }
 
-    public boolean toggleLike(String autorPost, String fechaPost) {
-        return toggleLike(autorPost, fechaPost, "");
+    public boolean toggleLike(String autorPost, String postKey) {
+        return toggleLike(autorPost, postKey, "");
     }
 
-    public boolean toggleLike(String autorPost, String fechaPost, String rutaImagen) {
+    public boolean toggleLike(String autorPost, String postKey, String rutaImagen) {
         if (usuarioActual == null) {
             return false;
         }
         String rutaLikes = RUTA_RAIZ + "/" + autorPost + "/likes.ins";
-        String prefijo = autorPost + "|" + fechaPost + "|" + usuarioActual.getUsername();
-
+        String prefijo = postKey + "|" + usuarioActual.getUsername();
         boolean yaLiked = false;
         String lineaEx = null;
         File f = new File(rutaLikes);
@@ -761,11 +769,10 @@ public class Sistema implements Interaccion, Mensajeria {
             } catch (Exception ignored) {
             }
         }
-
         if (yaLiked) {
             eliminarLineaDeArchivo(rutaLikes, lineaEx);
             if (!usuarioActual.getUsername().equals(autorPost)) {
-                eliminarNotificacionLike(autorPost, fechaPost, usuarioActual.getUsername());
+                eliminarNotificacionLike(autorPost, postKey, usuarioActual.getUsername());
             }
             return false;
         } else {
@@ -774,19 +781,14 @@ public class Sistema implements Interaccion, Mensajeria {
             } catch (IOException e) {
                 e.printStackTrace();
             }
-
-            // ── NUEVO: escribir notificación separada ──
-            if (!usuarioActual.getUsername().equals(autorPost)) { // no notificar likes propios
-                String rutaNotifLikes = RUTA_RAIZ + "/" + autorPost + "/likes_notif.ins";
+            if (!usuarioActual.getUsername().equals(autorPost)) {
+                String rutaNotif = RUTA_RAIZ + "/" + autorPost + "/likes_notif.ins";
                 try {
-                    File fn = new File(rutaNotifLikes);
-                    if (!fn.exists()) {
-                        fn.createNewFile();
-                    }
+                    new File(rutaNotif).createNewFile();
                 } catch (IOException ignored) {
                 }
-                appendLine(rutaNotifLikes, autorPost + "|" + fechaPost + "|"
-                        + usuarioActual.getUsername() + "|" + (rutaImagen != null ? rutaImagen : ""));
+               appendLine(rutaNotif, autorPost + "|" + postKey + "|"
+        + usuarioActual.getUsername() + "|" + (rutaImagen != null ? rutaImagen : ""));
             }
             return true;
         }
@@ -822,37 +824,25 @@ public class Sistema implements Interaccion, Mensajeria {
         if (usuarioActual == null) {
             return;
         }
-
-        String horaPost = "";
-        for (Publicacion p : getPublicacionesDeUsuario(autorPost)) {
-            if (p.getFecha().toString().equals(fechaPost)) {
-                horaPost = p.getHora().toString();
-                break;
-            }
-        }
-        String clave = fechaPost + "T" + horaPost;
         String ruta = RUTA_RAIZ + "/" + autorPost + "/comments.ins";
         try (FileWriter fw = new FileWriter(ruta, true)) {
-            fw.write(clave + "|" + usuarioActual.getUsername() + "|" + comentario + "\n");
+            fw.write(fechaPost + "|" + usuarioActual.getUsername() + "|" + comentario + "\n");
         } catch (IOException e) {
             e.printStackTrace();
         }
-
         if (!usuarioActual.getUsername().equals(autorPost)) {
             String rutaNotif = RUTA_RAIZ + "/" + autorPost + "/likes_notif.ins";
             try {
                 new File(rutaNotif).createNewFile();
             } catch (IOException ignored) {
             }
-            appendLine(rutaNotif, "COMENTARIO|" + clave + "|"
-                    + usuarioActual.getUsername() + "|" + comentario);
+            appendLine(rutaNotif, "COMENTARIO|" + fechaPost + "|" + usuarioActual.getUsername() + "|" + comentario);
         }
-        for (String p : comentario.split(" ")) {
-            if (p.startsWith("@")) {
-                String men = p.substring(1);
+        for (String pw : comentario.split(" ")) {
+            if (pw.startsWith("@")) {
+                String men = pw.substring(1);
                 if (existeUsername(men)) {
-                    guardarNotificacion(men, "MENCION|" + usuarioActual.getUsername()
-                            + "|" + comentario + "|" + LocalDate.now());
+                    guardarNotificacion(men, "MENCION|" + usuarioActual.getUsername() + "|" + comentario + "|" + LocalDate.now());
                 }
             }
         }
@@ -864,16 +854,6 @@ public class Sistema implements Interaccion, Mensajeria {
         if (!f.exists()) {
             return lista;
         }
-        // Obtener la hora exacta del post
-        String horaPost = "";
-        for (Publicacion p : getPublicacionesDeUsuario(autorPost)) {
-            if (p.getFecha().toString().equals(fechaPost)) {
-                horaPost = p.getHora().toString();
-                break;
-            }
-        }
-        String clave = fechaPost + "T" + horaPost;
-        // También aceptar formato viejo (solo fecha) para compatibilidad
         try (Scanner sc = new Scanner(f)) {
             while (sc.hasNextLine()) {
                 String linea = sc.nextLine().trim();
@@ -881,7 +861,7 @@ public class Sistema implements Interaccion, Mensajeria {
                     continue;
                 }
                 String[] d = linea.split("\\|", 3);
-                if (d.length >= 3 && (d[0].equals(clave) || d[0].equals(fechaPost))) {
+                if (d.length >= 3 && d[0].equals(fechaPost)) {
                     lista.add(d[1] + ": " + d[2]);
                 }
             }
@@ -932,7 +912,6 @@ public class Sistema implements Interaccion, Mensajeria {
         try (Scanner sc = new Scanner(f)) {
             while (sc.hasNextLine()) {
                 String l = sc.nextLine();
-                // Eliminar líneas tipo "SEGUIDOR|quien|fecha"
                 if (l.startsWith("SEGUIDOR|" + quien + "|")) {
                     continue;
                 }

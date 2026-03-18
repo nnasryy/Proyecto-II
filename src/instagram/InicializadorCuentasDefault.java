@@ -30,6 +30,7 @@ public class InicializadorCuentasDefault {
         {"natgeo",    "natgeo1234",    "National Geographic", "M", "136"},
     };
 
+
 private static final String[][][] POSTS = {
     // nasa — 10 posts
     {
@@ -71,6 +72,7 @@ private static final String[][][] POSTS = {
         {"NatGeo fue adquirida por Disney en 2019. Sigue siendo la marca de ciencia y naturaleza más reconocida del mundo. #natgeo",         "#natgeo #historia #empresa"},
     },
 };
+
    
     private static final String[] FOTOS_PERFIL = {"nasapfp.png", "starbuckspfp.png", "natgeopfp.png"};
     private static final String[] IMG_PREFIJOS  = {"nasa", "starbucks", "natgeo"};
