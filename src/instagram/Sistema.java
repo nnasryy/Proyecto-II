@@ -822,28 +822,31 @@ public class Sistema implements Interaccion, Mensajeria {
         if (usuarioActual == null) {
             return;
         }
+
+        String horaPost = "";
+        for (Publicacion p : getPublicacionesDeUsuario(autorPost)) {
+            if (p.getFecha().toString().equals(fechaPost)) {
+                horaPost = p.getHora().toString();
+                break;
+            }
+        }
+        String clave = fechaPost + "T" + horaPost;
         String ruta = RUTA_RAIZ + "/" + autorPost + "/comments.ins";
         try (FileWriter fw = new FileWriter(ruta, true)) {
-            fw.write(fechaPost + "|" + usuarioActual.getUsername() + "|" + comentario + "\n");
+            fw.write(clave + "|" + usuarioActual.getUsername() + "|" + comentario + "\n");
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-        // ← Notificar al autor del post si no es el mismo usuario
         if (!usuarioActual.getUsername().equals(autorPost)) {
             String rutaNotif = RUTA_RAIZ + "/" + autorPost + "/likes_notif.ins";
             try {
-                File fn = new File(rutaNotif);
-                if (!fn.exists()) {
-                    fn.createNewFile();
-                }
+                new File(rutaNotif).createNewFile();
             } catch (IOException ignored) {
             }
-            appendLine(rutaNotif, "COMENTARIO|" + fechaPost + "|"
+            appendLine(rutaNotif, "COMENTARIO|" + clave + "|"
                     + usuarioActual.getUsername() + "|" + comentario);
         }
-
-        // menciones existentes
         for (String p : comentario.split(" ")) {
             if (p.startsWith("@")) {
                 String men = p.substring(1);
@@ -861,15 +864,24 @@ public class Sistema implements Interaccion, Mensajeria {
         if (!f.exists()) {
             return lista;
         }
+        // Obtener la hora exacta del post
+        String horaPost = "";
+        for (Publicacion p : getPublicacionesDeUsuario(autorPost)) {
+            if (p.getFecha().toString().equals(fechaPost)) {
+                horaPost = p.getHora().toString();
+                break;
+            }
+        }
+        String clave = fechaPost + "T" + horaPost;
+        // También aceptar formato viejo (solo fecha) para compatibilidad
         try (Scanner sc = new Scanner(f)) {
             while (sc.hasNextLine()) {
                 String linea = sc.nextLine().trim();
                 if (linea.isEmpty()) {
                     continue;
                 }
-                // Usar split con límite 3 para preservar texto con | dentro
                 String[] d = linea.split("\\|", 3);
-                if (d.length >= 3 && d[0].equals(fechaPost)) {
+                if (d.length >= 3 && (d[0].equals(clave) || d[0].equals(fechaPost))) {
                     lista.add(d[1] + ": " + d[2]);
                 }
             }
@@ -1684,12 +1696,8 @@ public class Sistema implements Interaccion, Mensajeria {
         if (usuarioActual == null) {
             return;
         }
-
         reescribirArchivo(
                 RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/notifications.ins",
-                new ArrayList<>());
-        reescribirArchivo(
-                RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/likes_notif.ins",
                 new ArrayList<>());
     }
 

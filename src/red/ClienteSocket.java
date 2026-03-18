@@ -24,7 +24,6 @@ public class ClienteSocket {
             iniciarEscucha();
             return true;
         } catch (IOException e) {
-            System.out.println("No se pudo conectar al servidor.");
             return false;
         }
     }

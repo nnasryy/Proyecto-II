@@ -37,9 +37,9 @@ public class ListaUsuarios {
     }
 
     private Usuario buscarRecursivoAux(NodoUsuario nodo, String username) {
-        if (nodo == null)                                       return null; // caso base: no encontrado
-        if (nodo.usuario.getUsername().equalsIgnoreCase(username)) return nodo.usuario; // caso base: encontrado
-        return buscarRecursivoAux(nodo.siguiente, username);   // llamada recursiva
+        if (nodo == null)                                       return null; 
+        if (nodo.usuario.getUsername().equalsIgnoreCase(username)) return nodo.usuario; 
+        return buscarRecursivoAux(nodo.siguiente, username);   
     }
 
   
@@ -67,7 +67,7 @@ public class ListaUsuarios {
         boolean noEsYo    = excluir == null || !u.getUsername().equals(excluir);
         boolean activo    = u.getEstadoCuenta() == enums.EstadoCuenta.ACTIVO;
         if (coincide && noEsYo && activo) resultados.add(u);
-        buscarPorCriterioRecursivo(nodo.siguiente, criterio, excluir, resultados); // RECURSIVIDAD
+        buscarPorCriterioRecursivo(nodo.siguiente, criterio, excluir, resultados); 
     }
 
 
