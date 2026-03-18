@@ -23,7 +23,7 @@ public class Publicacion {
         this.rutaImagen = rutaImagen;
         this.fecha = LocalDate.now();
         this.hora = LocalTime.now();
-        this.tipoMultimedia = "CUADRADA"; // Valor por defecto según tu código
+        this.tipoMultimedia = "CUADRADA"; 
         this.hashtags = hashtags;
         this.menciones = menciones;
     }
@@ -32,7 +32,6 @@ public class Publicacion {
     }
 
     public String toFileString() {
-        // autor|fecha|hora|contenido|hashtags|menciones|ruta|tipo
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("HH:mm:ss");
         return autor + "|"
                 + fecha.toString() + "|"
@@ -44,7 +43,7 @@ public class Publicacion {
                 + tipoMultimedia;
     }
 
-    // --- MÉTODO ESTÁTICO PARA LEER DESDE ARCHIVO ---
+
     public static Publicacion fromFileString(String linea) {
         try {
             String[] datos = linea.split("\\|");

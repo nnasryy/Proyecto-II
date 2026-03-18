@@ -29,7 +29,6 @@ public class HiloCliente extends Thread {
             Object objeto;
             while ((objeto = entrada.readObject()) != null) {
                 if (objeto instanceof EventoSocket) {
-                    // Reenviar a todos los demás clientes
                     Servidor.broadcast((EventoSocket) objeto, this);
                 }
             }

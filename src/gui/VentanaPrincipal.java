@@ -298,6 +298,7 @@ public class VentanaPrincipal extends JFrame {
         });
         lblReg.addMouseListener(click(this::cargarVistaRegistro));
         revalidate();
+
         repaint();
     }
 
@@ -1256,7 +1257,7 @@ public class VentanaPrincipal extends JFrame {
                 return;
             }
             StringBuilder ht = new StringBuilder(), mn = new StringBuilder();
-            for (String w : texto.split(" ")) {
+            for (String w : (texto.isEmpty() ? new String[0] : texto.split(" "))) {
                 if (w.startsWith("#")) {
                     ht.append(w).append(" ");
                 } else if (w.startsWith("@")) {
@@ -3163,17 +3164,13 @@ public class VentanaPrincipal extends JFrame {
                 return;
             }
 
-            // Actualizar nombre y contraseña
             sistema.actualizarDatosUsuario(nom, pass);
 
-            // Actualizar edad
             sistema.actualizarEdad((int) spnEdad.getValue());
 
-            // Actualizar género
             char genero = cmbGenero.getSelectedIndex() == 0 ? 'M' : 'F';
             sistema.actualizarGenero(genero);
 
-            // Actualizar tipo de cuenta
             TipoCuenta tipo = cmbTipo.getSelectedIndex() == 0 ? TipoCuenta.PUBLICA : TipoCuenta.PRIVADA;
             sistema.actualizarTipoCuenta(tipo);
 
@@ -3349,9 +3346,6 @@ public class VentanaPrincipal extends JFrame {
         repaint();
     }
 
-    // ════════════════════════════════════════════════════════════
-    //  FOTOS CIRCULARES
-    // ════════════════════════════════════════════════════════════
     private ImageIcon cargarFotoCircular(String username, int d) {
         Usuario u = sistema.buscarUsuario(username);
         if (u != null) {
@@ -3401,9 +3395,6 @@ public class VentanaPrincipal extends JFrame {
         return new ImageIcon(img);
     }
 
-    // ════════════════════════════════════════════════════════════
-    //  HELPERS UI
-    // ════════════════════════════════════════════════════════════
     private JTextField buildField(String ph) {
         JTextField t = new JTextField();
         t.setBackground(C_FIELD);
@@ -3757,7 +3748,6 @@ public class VentanaPrincipal extends JFrame {
             return "";
         }
     }
-    // ── Glasspane helper ────────────────────────────────────────
 
     private JPanel mostrarOverlay() {
         JPanel glass = new JPanel() {
@@ -3785,7 +3775,6 @@ public class VentanaPrincipal extends JFrame {
         repaint();
     }
 
-    // Refresca posts del feed sin reconstruir toda la vista
     private void refrescarPostsEnFeed() {
         if (!"Home".equals(vistaActual)) {
             return;
@@ -3795,21 +3784,17 @@ public class VentanaPrincipal extends JFrame {
             return;
         }
         lastFeedCount = posts.size();
-        // Buscar el panel de contenido y agregar solo los nuevos posts al inicio
-        // En lugar de reconstruir todo, solo actualizamos el contador
-        // El feedTimer se encarga del refresco visual cada 3s
+
         if (feedTimer != null) {
             feedTimer.restart();
         }
     }
 
-// Refresca stats del perfil sin recargar la página
     private void refrescarPerfil() {
-        // Solo invalida cache para que el timer global lo detecte
+
         sistema.invalidarCachePublica();
     }
 
-// Refresca notificaciones sin navegar
     private void refrescarNotificaciones() {
         sistema.invalidarCachePublica();
     }
@@ -3824,7 +3809,7 @@ public class VentanaPrincipal extends JFrame {
                     SwingUtilities.invokeLater(() -> {
                         switch (evento.getTipo()) {
                             case NUEVO_POST:
-                                // Solo refrescar posts si estamos en Home, SIN navegar
+
                                 if ("Home".equals(vistaActual)) {
                                     refrescarPostsEnFeed();
                                 }
@@ -3832,12 +3817,12 @@ public class VentanaPrincipal extends JFrame {
                             case NUEVO_MENSAJE:
                                 if (sistema.getUsuarioActual().getUsername()
                                         .equals(evento.getUsuarioDestino())) {
-                                    // Actualizar punto azul instantáneo
+
                                     if (btnSidebarMensajes != null) {
                                         btnSidebarMensajes.putClientProperty("hasDot", true);
                                         btnSidebarMensajes.repaint();
                                     }
-                                    // Si estamos en mensajes, refrescar firma
+
                                     if ("Messages".equals(vistaActual)) {
                                         lastMessageSignature = "";
                                     }
@@ -3850,7 +3835,7 @@ public class VentanaPrincipal extends JFrame {
                                         btnSidebarNotificaciones.putClientProperty("hasDot", true);
                                         btnSidebarNotificaciones.repaint();
                                     }
-                                    // Si estamos en notificaciones, refrescar sin navegar
+
                                     if ("Notifications".equals(vistaActual)) {
                                         refrescarNotificaciones();
                                     }
@@ -3858,7 +3843,7 @@ public class VentanaPrincipal extends JFrame {
                                 break;
                             case CAMBIO_SEGUIDOR:
                             case ACTUALIZACION_PERFIL:
-                                // Solo refrescar si estamos viendo ese perfil
+
                                 if ("Profile".equals(vistaActual)
                                         && sistema.getUsuarioActual() != null) {
                                     refrescarPerfil();

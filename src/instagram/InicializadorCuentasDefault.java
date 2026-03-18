@@ -12,40 +12,28 @@ import java.util.HashSet;
 import java.util.Scanner;
 import java.util.Set;
 
-/**
- * InicializadorCuentasDefault
- *
- * Crea 3 cuentas predeterminadas (NASA, Starbucks, NatGeo) con sus imágenes
- * cargadas desde /images (classpath) y copiadas a INSTA_RAIZ al primer arranque.
- */
 public class InicializadorCuentasDefault {
 
     private static final String RUTA_RAIZ  = "INSTA_RAIZ";
     private static final String RUTA_USERS = RUTA_RAIZ + "/users.ins";
 
-    /** Usernames de las cuentas default — usados en Sistema.java para el feed */
     public static final String[] USERNAMES_DEFAULT = {"nasa", "starbucks", "natgeo"};
 
-    /**
-     * Set de usernames verificados — usado por VentanaPrincipal para mostrar el badge.
-     * Agrega aquí cualquier username que quieras verificar.
-     */
+
     public static final Set<String> VERIFICADOS = new HashSet<>(
         Arrays.asList("nasa", "starbucks", "natgeo")
     );
 
-    // ── Datos de cada cuenta ─────────────────────────────────────
     private static final String[][] CUENTAS = {
         {"nasa",      "nasa1234",      "NASA",                "M", "65"},
         {"starbucks", "starbucks1234", "Starbucks Coffee",    "F", "53"},
         {"natgeo",    "natgeo1234",    "National Geographic", "M", "136"},
     };
 
-    // ── Contenido de posts ───────────────────────────────────────
     private static final String[][][] POSTS = {
         // nasa — 10 posts
         {
-            {"El universo tiene aproximadamente 13.8 mil millones de años. Cada estrella es una historia de luz viajando hacia ti. #espacio #nasa #universo",   "#espacio #nasa #universo"},
+            {"El universo tiene aproximadamente 13.8 mil millones de años. Cada #espacio #nasa #universo",   "#espacio #nasa #universo"},
             {"La ISS orbita la Tierra a 400 km de altitud a 28.000 km/h. ¡Una puesta de sol cada 90 minutos! #ISS #nasa #orbita",                              "#ISS #nasa #orbita"},
             {"Marte tiene el volcán más grande del sistema solar: Olympus Mons, con 22 km de altura. Tres veces más alto que el Everest. #marte #nasa",         "#marte #nasa #planeta"},
             {"El sonido no viaja en el espacio porque no hay moléculas que lo transmitan. El cosmos es el silencio más profundo. #ciencia #nasa",               "#ciencia #espacio #nasa"},
@@ -84,13 +72,11 @@ public class InicializadorCuentasDefault {
         },
     };
 
-    // Fotos de perfil — nombres CORREGIDOS
+   
     private static final String[] FOTOS_PERFIL = {"nasapfp.png", "starbuckspfp.png", "natgeopfp.png"};
     private static final String[] IMG_PREFIJOS  = {"nasa", "starbucks", "natgeo"};
 
-    // ════════════════════════════════════════════════════════════
-    //  PUNTO DE ENTRADA
-    // ════════════════════════════════════════════════════════════
+
     public static void inicializar() {
         for (int i = 0; i < CUENTAS.length; i++) {
             if (!existeUsuario(CUENTAS[i][0])) {
@@ -99,9 +85,7 @@ public class InicializadorCuentasDefault {
         }
     }
 
-    // ════════════════════════════════════════════════════════════
-    //  CREACIÓN DE CUENTA
-    // ════════════════════════════════════════════════════════════
+
     private static void crearCuenta(int idx) {
         String username = CUENTAS[idx][0];
         String password = CUENTAS[idx][1];
@@ -130,9 +114,6 @@ public class InicializadorCuentasDefault {
         System.out.println("Cuenta default creada: @" + username);
     }
 
-    // ════════════════════════════════════════════════════════════
-    //  CREACIÓN DE POSTS
-    // ════════════════════════════════════════════════════════════
     private static void crearPosts(int idx, String username) {
         String rutaInsta = RUTA_RAIZ + "/" + username + "/insta.ins";
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("HH:mm:ss");
@@ -166,9 +147,7 @@ public class InicializadorCuentasDefault {
         }
     }
 
-    // ════════════════════════════════════════════════════════════
-    //  HELPERS
-    // ════════════════════════════════════════════════════════════
+
     private static String copiarRecurso(String rutaClasspath, String rutaDestino) {
         try (InputStream is = InicializadorCuentasDefault.class.getResourceAsStream(rutaClasspath)) {
             if (is == null) return null;

@@ -20,7 +20,6 @@ public class InstaDialog {
     private static final Font FONT_BTN = new Font("Arial", Font.BOLD, 13);
     private static final int RADIUS = 14;
 
-    // ── MENSAJE SIMPLE ───────────────────────────────────────────
     public static void showMessage(Component parent, String message) {
         showMessage(parent, message, false);
     }
@@ -45,7 +44,6 @@ public class InstaDialog {
         show(d, card, parent);
     }
 
-    // ── CONFIRMACIÓN ─────────────────────────────────────────────
     public static boolean showConfirm(Component parent, String message,
             String yesLabel, boolean dangerYes) {
         boolean[] result = {false};
@@ -74,7 +72,6 @@ public class InstaDialog {
         return result[0];
     }
 
-    // ── INPUT ────────────────────────────────────────────────────
     public static String showInput(Component parent, String title, String placeholder) {
         String[] result = {null};
         JDialog d = buildBase(parent, 340, 200);
@@ -111,9 +108,6 @@ public class InstaDialog {
         return result[0];
     }
 
-    // ════════════════════════════════════════════════════════════
-    //  NÚCLEO
-    // ════════════════════════════════════════════════════════════
     private static JDialog buildBase(Component parent, int w, int h) {
         Frame owner = findFrame(parent);
         JDialog d = new JDialog(owner, true);
@@ -140,7 +134,6 @@ public class InstaDialog {
     }
 
     private static void show(JDialog d, JPanel card, Component parent) {
-        // ── Glasspane sobre el JFrame padre ──
         JFrame frame = findJFrame(parent);
         Component oldGlass = null;
         JPanel glass = null;
@@ -158,16 +151,14 @@ public class InstaDialog {
             };
             glass.setOpaque(false);
             glass.addMouseListener(new MouseAdapter() {
-            }); // bloquea clicks
+            }); 
             frame.setGlassPane(glass);
             glass.setVisible(true);
         }
 
-        // ── Contenido del diálogo ──
         JPanel root = new JPanel(new GridBagLayout()) {
             @Override
             protected void paintComponent(Graphics g) {
-                // fondo transparente — el oscurecido lo hace el glasspane
             }
         };
         root.setOpaque(false);
@@ -175,7 +166,6 @@ public class InstaDialog {
         card.setOpaque(false);
         d.setContentPane(root);
 
-        // ── Al cerrar: quitar glasspane ──
         final Component finalOldGlass = oldGlass;
         final JPanel finalGlass = glass;
         final JFrame finalFrame = frame;
@@ -211,9 +201,6 @@ public class InstaDialog {
         d.setVisible(true); // bloquea aquí (modal)
     }
 
-    // ════════════════════════════════════════════════════════════
-    //  HELPERS
-    // ════════════════════════════════════════════════════════════
     private static Frame findFrame(Component c) {
         if (c instanceof Frame) {
             return (Frame) c;
@@ -228,9 +215,7 @@ public class InstaDialog {
         return null;
     }
 
-    /**
-     * Busca el JFrame raíz para el glasspane.
-     */
+
     private static JFrame findJFrame(Component c) {
         if (c instanceof JFrame) {
             return (JFrame) c;

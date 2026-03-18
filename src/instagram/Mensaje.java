@@ -22,14 +22,14 @@ public abstract class Mensaje implements Serializable {
     
     public Mensaje() {} 
 
-    // --- MÉTODOS ABSTRACTOS ---
+
     public abstract String getContenido(); 
     public abstract String toFileString(); 
 
-    // --- MÉTODO ESTÁTICO FÁBRICA (ACTUALIZADO) ---
+
     public static Mensaje fromFileString(String linea) {
         try {
-            // NUEVO FORMATO: EMISOR|RECEPTOR|TIPO|ESTADO|FECHA|HORA|CONTENIDO
+      
             String[] datos = linea.split("\\|",7);
             if (datos.length < 7) return null; 
 
@@ -48,7 +48,7 @@ public abstract class Mensaje implements Serializable {
                 m = new MensajeTexto(emisor, receptor, contenido);
             }
             
-            // Restaurar valores leídos del archivo
+
             m.fecha = fecha;
             m.hora = hora;
             m.setEstado(estado);
@@ -60,7 +60,7 @@ public abstract class Mensaje implements Serializable {
         }
     }
 
-    // Getters comunes
+
     public String getEmisor() { return emisor; }
     public String getReceptor() { return receptor; }
     public String getEstado() { return estado; }

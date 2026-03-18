@@ -14,7 +14,7 @@ public class EventoSocket implements Serializable {
 
     private Tipo tipo;
     private String usuarioOrigen;
-    private String usuarioDestino; // null = broadcast a todos
+    private String usuarioDestino; 
 
     public EventoSocket(Tipo tipo, String usuarioOrigen, String usuarioDestino) {
         this.tipo = tipo;
