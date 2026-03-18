@@ -787,8 +787,8 @@ public class Sistema implements Interaccion, Mensajeria {
                     new File(rutaNotif).createNewFile();
                 } catch (IOException ignored) {
                 }
-               appendLine(rutaNotif, autorPost + "|" + postKey + "|"
-        + usuarioActual.getUsername() + "|" + (rutaImagen != null ? rutaImagen : ""));
+                appendLine(rutaNotif, autorPost + "|" + postKey + "|"
+                        + usuarioActual.getUsername() + "|" + (rutaImagen != null ? rutaImagen : ""));
             }
             return true;
         }
@@ -955,6 +955,12 @@ public class Sistema implements Interaccion, Mensajeria {
     }
 
     public boolean puedeEnviarMensaje(String receptor) {
+        if (usuarioActual == null) {
+            return false;
+        }
+        if (receptor.equals(usuarioActual.getUsername())) {
+            return false;
+        }
         Usuario u = buscarUsuario(receptor);
         if (u == null) {
             return false;
@@ -1680,45 +1686,37 @@ public class Sistema implements Interaccion, Mensajeria {
                 new ArrayList<>());
     }
 
-    public int getCantidadShares(String autorPost, String fechaPost) {
-        // Los shares son mensajes tipo SHARE en los inboxes de todos
-        // Contamos en el inbox del propio autor cuántos SHARE recibió con esa imagen
-        int count = 0;
-        File raiz = new File(RUTA_RAIZ);
-        String[] carpetas = raiz.list();
-        if (carpetas == null) {
-            return 0;
+public int getCantidadShares(String autorPost, String postKey) {
+    int count = 0;
+    File raiz = new File(RUTA_RAIZ);
+    String[] carpetas = raiz.list();
+    if (carpetas == null) return 0;
+    String rutaImg = "";
+    for (Publicacion p : getPublicacionesDeUsuario(autorPost)) {
+        String key = p.getFecha().toString() + "T"
+                + p.getHora().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
+        if (key.equals(postKey)) {
+            rutaImg = p.getRutaImagen() != null ? p.getRutaImagen() : "";
+            break;
         }
-        // Buscar publicación para obtener ruta imagen
-        String rutaImg = "";
-        for (Publicacion p : getPublicacionesDeUsuario(autorPost)) {
-            if (p.getFecha().toString().equals(fechaPost)) {
-                rutaImg = p.getRutaImagen() != null ? p.getRutaImagen() : "";
-                break;
-            }
-        }
-        if (rutaImg.isEmpty()) {
-            return 0;
-        }
-        final String ri = rutaImg;
-        for (String carpeta : carpetas) {
-            File inbox = new File(RUTA_RAIZ + "/" + carpeta + "/inbox.ins");
-            if (!inbox.exists()) {
-                continue;
-            }
-            try (Scanner sc = new Scanner(inbox)) {
-                while (sc.hasNextLine()) {
-                    String linea = sc.nextLine();
-                    Mensaje m = Mensaje.fromFileString(linea);
-                    if (m != null && m.getContenido() != null
-                            && m.getContenido().startsWith("SHARE|" + autorPost + "|" + ri)) {
-                        count++;
-                    }
-                }
-            } catch (Exception ignored) {
-            }
-        }
-        return count / 2; // cada share se guarda 2 veces (emisor + receptor)
     }
+    if (rutaImg.isEmpty()) return 0;
+    final String ri = rutaImg;
+    for (String carpeta : carpetas) {
+        File inbox = new File(RUTA_RAIZ + "/" + carpeta + "/inbox.ins");
+        if (!inbox.exists()) continue;
+        try (Scanner sc = new Scanner(inbox)) {
+            while (sc.hasNextLine()) {
+                String linea = sc.nextLine();
+                Mensaje m = Mensaje.fromFileString(linea);
+                if (m != null && m.getContenido() != null
+                        && m.getContenido().startsWith("SHARE|" + autorPost + "|" + ri)) {
+                    count++;
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+    return count / 2;
+}
 
 }

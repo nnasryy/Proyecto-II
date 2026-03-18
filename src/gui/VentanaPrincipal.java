@@ -800,6 +800,10 @@ public class VentanaPrincipal extends JFrame {
                 InstaDialog.showMessage(this, "Esa cuenta no está disponible.", true);
                 return;
             }
+            if (dest.equals(sistema.getUsuarioActual().getUsername())) {
+                InstaDialog.showMessage(this, "No puedes enviarte mensajes a ti mismo.", true);
+                return;
+            }
             if (!sistema.puedeEnviarMensaje(dest)) {
                 InstaDialog.showMessage(this, "No puedes enviar mensajes a @" + dest + ".\nSu cuenta es privada.", true);
                 return;
@@ -819,45 +823,6 @@ public class VentanaPrincipal extends JFrame {
 
         btnComment.addActionListener(ev -> abrirComentarios(p));
 
-        btnShare.addActionListener(ev -> {
-            if (sistema.getUsuarioActual() == null) {
-                return;
-            }
-            JPanel glass = mostrarOverlay();
-            String dest = InstaDialog.showInput(this, "Enviar por mensaje a...", "Nombre de usuario");
-            quitarOverlay(glass);
-            if (dest == null || dest.isEmpty()) {
-                return;
-            }
-            Usuario destU = sistema.buscarUsuario(dest);
-            if (destU == null) {
-                InstaDialog.showMessage(this, "El usuario @" + dest + " no existe.", true);
-                return;
-            }
-            if (destU.getEstadoCuenta() == EstadoCuenta.DESACTIVADO) {
-                InstaDialog.showMessage(this, "Esa cuenta no está disponible.", true);
-                return;
-            }
-            if (!sistema.puedeEnviarMensaje(dest)) {
-                InstaDialog.showMessage(this, "No puedes enviar mensajes a @" + dest
-                        + ".\nSu cuenta es privada — deben seguirse mutuamente.", true);
-                return;
-            }
-            if (!sistema.puedeCompartirPost(dest, p.getAutor())) {
-                InstaDialog.showMessage(this, "No puedes compartir este post con @" + dest
-                        + ".\nEl autor tiene cuenta privada.", true);
-                return;
-            }
-            sistema.compartirPost(dest, p.getAutor(), p.getRutaImagen(), p.getContenido());
-            int ns = sistema.getCantidadShares(p.getAutor(), p.getFecha().toString());
-            lblShares.setText(ns > 0 ? String.valueOf(ns) : "");
-            boolean irChat = InstaDialog.showConfirm(this,
-                    "Post enviado a @" + dest + " \n¿Abrir el chat?", "Abrir", false);
-            if (irChat) {
-                SwingUtilities.invokeLater(() -> cargarVistaInboxCon(dest));
-            }
-        });
-
         acciones.add(btnLike);
         acciones.add(lblLikes);
         acciones.add(Box.createHorizontalStrut(8));
@@ -872,28 +837,24 @@ public class VentanaPrincipal extends JFrame {
         footer.setLayout(new BoxLayout(footer, BoxLayout.Y_AXIS));
         footer.setBackground(C_WHITE);
         footer.setBorder(BorderFactory.createEmptyBorder(0, 12, 10, 12));
+        acciones.setAlignmentX(Component.LEFT_ALIGNMENT);
         footer.add(acciones);
 
-        // ── Caption: solo si hay contenido ───────────────────────
         String contenido = p.getContenido();
         if (contenido != null && !contenido.isEmpty()) {
-            JPanel captionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
-            captionRow.setBackground(C_WHITE);
-            captionRow.setMaximumSize(new Dimension(POST_W - 24, Integer.MAX_VALUE));
-
-            JLabel lblAutorCap = new JLabel(p.getAutor());
-            lblAutorCap.setFont(F_BOLD);
-            lblAutorCap.setForeground(C_TEXT);
-            lblAutorCap.setCursor(new Cursor(Cursor.HAND_CURSOR));
-            lblAutorCap.addMouseListener(click(() -> cargarVistaPerfil(p.getAutor())));
-            captionRow.add(lblAutorCap);
-
+            String textoCorto = contenido.length() > 300 ? contenido.substring(0, 297) + "..." : contenido;
+            JPanel captionWrap = new JPanel(new BorderLayout());
+            captionWrap.setBackground(C_WHITE);
+            captionWrap.setAlignmentX(Component.LEFT_ALIGNMENT);
+            captionWrap.setMaximumSize(new Dimension(POST_W - 24, Integer.MAX_VALUE));
             JEditorPane edCaption = new JEditorPane("text/html", "");
             edCaption.setEditable(false);
             edCaption.setOpaque(false);
-            edCaption.setMaximumSize(new Dimension(POST_W - 100, Integer.MAX_VALUE));
-            edCaption.setText("<html><font face='Arial' size='3'>"
-                    + toHtml(contenido) + "</font></html>");
+            edCaption.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, true);
+            edCaption.setFont(F_REGULAR);
+            edCaption.setPreferredSize(null);
+            edCaption.setText("<html><body style='font-family:Arial;font-size:13px;width:560px;margin:0;padding:0'>"
+                    + "<b>" + p.getAutor() + "</b> " + toHtml(textoCorto) + "</body></html>");
             edCaption.addHyperlinkListener(e -> {
                 if (e.getEventType() == javax.swing.event.HyperlinkEvent.EventType.ACTIVATED) {
                     String h = e.getDescription();
@@ -904,12 +865,11 @@ public class VentanaPrincipal extends JFrame {
                     }
                 }
             });
-            captionRow.add(edCaption);
-            footer.add(captionRow);
+            captionWrap.add(edCaption, BorderLayout.CENTER);
+            footer.add(captionWrap);
         }
-
-        // ── Comentarios preview (max 2) ───────────────────────────
-      ArrayList<String> comentarios = sistema.getComentarios(p.getAutor(), postKey);
+// ── Comentarios preview ───────────────────────────
+        ArrayList<String> comentarios = sistema.getComentarios(p.getAutor(), postKey);
         if (!comentarios.isEmpty()) {
             int mostrar = Math.min(2, comentarios.size());
             for (int i = 0; i < mostrar; i++) {
@@ -922,6 +882,7 @@ public class VentanaPrincipal extends JFrame {
                 }
                 JPanel comRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
                 comRow.setBackground(C_WHITE);
+                comRow.setAlignmentX(Component.LEFT_ALIGNMENT);
                 JLabel lu = new JLabel(comUser);
                 lu.setFont(F_BOLD);
                 lu.setForeground(C_TEXT);
@@ -948,6 +909,7 @@ public class VentanaPrincipal extends JFrame {
         // ── Fecha ─────────────────────────────────────────────────
         JPanel fechaRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         fechaRow.setBackground(C_WHITE);
+        fechaRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         JLabel lblFecha = new JLabel(p.getFecha() + "  " + p.getHoraFormateada());
         lblFecha.setFont(F_SMALL);
         lblFecha.setForeground(C_TEXT_LIGHT);
@@ -1052,7 +1014,7 @@ public class VentanaPrincipal extends JFrame {
     }
 
     // ════════════════════════════════════════════════════════════
-    //  COMENTARIOS — JWindow sin decoración del SO
+    //  COMENTARIOS 
     // ════════════════════════════════════════════════════════════
     private void abrirComentarios(Publicacion p) {
         String postKey = p.getFecha().toString() + "T" + p.getHora().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
@@ -1610,7 +1572,6 @@ public class VentanaPrincipal extends JFrame {
         sep.setForeground(C_BORDER);
         sep.setBackground(C_BORDER);
 
-        // Grid 4 cols — fondo blanco
         JPanel grid = new JPanel(new GridLayout(0, 4, 2, 2));
         grid.setBackground(C_WHITE);
         grid.setBorder(BorderFactory.createEmptyBorder(2, 60, 20, 60));
@@ -1790,7 +1751,8 @@ public class VentanaPrincipal extends JFrame {
             JPanel cl = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
             cl.setBackground(C_WHITE);
             cl.add(new JLabel(cargarFotoCircular(p.getAutor(), 28)));
-            JLabel ct = new JLabel("<html><b>" + p.getAutor() + "</b> " + p.getContenido() + "</html>");
+            String resumen = p.getContenido().length() > 80 ? p.getContenido().substring(0, 77) + "..." : p.getContenido();
+            JLabel ct = new JLabel("<html><b>" + p.getAutor() + "</b> " + resumen + "</html>");
             ct.setFont(F_REGULAR);
             ct.setForeground(C_TEXT);
             cl.add(ct);
@@ -3018,7 +2980,13 @@ public class VentanaPrincipal extends JFrame {
         }
         revalidate();
         repaint();
-        SwingUtilities.invokeLater(() -> sistema.marcarNotificacionesVistas());
+        SwingUtilities.invokeLater(() -> {
+            sistema.marcarNotificacionesVistas();
+            if (btnSidebarNotificaciones != null) {
+                btnSidebarNotificaciones.putClientProperty("hasDot", false);
+                btnSidebarNotificaciones.repaint();
+            }
+        });
     }
 
     private JLabel sectionTitle(String text) {
