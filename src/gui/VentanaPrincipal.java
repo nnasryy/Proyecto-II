@@ -35,6 +35,8 @@ public class VentanaPrincipal extends JFrame {
     private Timer globalTimer;
     private String lastMessageSignature = "";
     private ClienteSocket clienteSocket = new ClienteSocket();
+    private JButton btnSidebarMensajes;
+    private JButton btnSidebarNotificaciones;
 
     private static final Color C_WHITE = Color.WHITE;
     private static final Color C_BG = new Color(250, 250, 250);
@@ -81,16 +83,29 @@ public class VentanaPrincipal extends JFrame {
         if (globalTimer != null) {
             globalTimer.stop();
         }
-        globalTimer = new Timer(2500, e -> {
+        globalTimer = new Timer(1500, e -> {
             if (sistema.getUsuarioActual() == null) {
                 return;
             }
             SwingUtilities.invokeLater(() -> {
-                // Actualizar punto rojo de mensajes y notificaciones en sidebar
                 boolean hayMsgs = sistema.getTotalMensajesNoLeidos() > 0;
                 boolean hayNotifs = tieneNotificacionesPendientes();
-                // Forzar repaint del sidebar si cambió algo
-                getContentPane().repaint();
+                if (btnSidebarMensajes != null) {
+                    boolean teniaPunto = btnSidebarMensajes.getClientProperty("hasDot") != null
+                            && (boolean) btnSidebarMensajes.getClientProperty("hasDot");
+                    if (teniaPunto != hayMsgs) {
+                        btnSidebarMensajes.putClientProperty("hasDot", hayMsgs);
+                        btnSidebarMensajes.repaint();
+                    }
+                }
+                if (btnSidebarNotificaciones != null) {
+                    boolean teniaPunto = btnSidebarNotificaciones.getClientProperty("hasDot") != null
+                            && (boolean) btnSidebarNotificaciones.getClientProperty("hasDot");
+                    if (teniaPunto != hayNotifs) {
+                        btnSidebarNotificaciones.putClientProperty("hasDot", hayNotifs);
+                        btnSidebarNotificaciones.repaint();
+                    }
+                }
             });
         });
         globalTimer.start();
@@ -451,6 +466,10 @@ public class VentanaPrincipal extends JFrame {
                 errUser.setText("Mínimo 3 caracteres.");
                 redBorder(panelUser);
                 ok = false;
+            } else if (!usr.matches("[a-zA-Z0-9._]+")) {
+                errUser.setText("Solo letras, números, . y _");
+                redBorder(panelUser);
+                ok = false;
             } else if (sistema.existeUsername(usr)) {
                 errUser.setText("El nombre ya existe.");
                 redBorder(panelUser);
@@ -554,6 +573,8 @@ public class VentanaPrincipal extends JFrame {
         }
 
         add(scroll, BorderLayout.CENTER);
+        revalidate();
+        repaint();
         SwingUtilities.invokeLater(() -> {
             scroll.getVerticalScrollBar().setValue(0);
             scroll.getViewport().setViewPosition(new Point(0, 0));
@@ -575,211 +596,253 @@ public class VentanaPrincipal extends JFrame {
     // ════════════════════════════════════════════════════════════
     //  POST CARD
     // ════════════════════════════════════════════════════════════
-    private JPanel buildPost(Publicacion p) {
-        final int POST_W = 600, IMG_H = 600;
-        JPanel post = new JPanel(new BorderLayout());
-        post.setBackground(C_WHITE);
-        post.setMaximumSize(new Dimension(POST_W, Integer.MAX_VALUE));
-        post.setPreferredSize(new Dimension(POST_W, IMG_H + 160));
-        post.setBorder(new LineBorder(C_BORDER, 1));
+private JPanel buildPost(Publicacion p) {
+    final int POST_W = 600, IMG_H = 600;
+    JPanel post = new JPanel(new BorderLayout());
+    post.setBackground(C_WHITE);
+    post.setMaximumSize(new Dimension(POST_W, Integer.MAX_VALUE));
+    post.setPreferredSize(new Dimension(POST_W, IMG_H + 160));
+    post.setBorder(new LineBorder(C_BORDER, 1));
 
-        // Header
-        JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(C_WHITE);
-        header.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
-        JPanel userInfo = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        userInfo.setBackground(C_WHITE);
-        userInfo.add(new JLabel(cargarFotoCircular(p.getAutor(), 32)));
-        JLabel lblUser = new JLabel(p.getAutor());
-        lblUser.setFont(F_BOLD);
-        lblUser.setForeground(C_TEXT);
-        lblUser.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        lblUser.addMouseListener(click(() -> cargarVistaPerfil(p.getAutor())));
-        userInfo.add(lblUser);
-        userInfo.add(badgeVerificado(p.getAutor()));
-        header.add(userInfo, BorderLayout.WEST);
+    // ── Header ──────────────────────────────────────────────
+    JPanel header = new JPanel(new BorderLayout());
+    header.setBackground(C_WHITE);
+    header.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
 
-        if (sistema.getUsuarioActual() != null && p.getAutor().equals(sistema.getUsuarioActual().getUsername())) {
-            JButton btnOpts = new JButton();
-            if (iconsNormal.containsKey("More")) {
-                btnOpts.setIcon(iconsNormal.get("More"));
-            } else {
-                btnOpts.setText("...");
-                btnOpts.setFont(new Font("Arial", Font.BOLD, 14));
-            }
-            btnOpts.setBorderPainted(false);
-            btnOpts.setContentAreaFilled(false);
-            btnOpts.setFocusPainted(false);
-            btnOpts.setCursor(new Cursor(Cursor.HAND_CURSOR));
-            JPopupMenu menu = new JPopupMenu();
-            menu.setBorder(new LineBorder(C_BORDER, 1));
-            JMenuItem itemDel = new JMenuItem("Eliminar publicación");
-            itemDel.setFont(F_BOLD);
-            itemDel.setForeground(C_ERROR);
-            itemDel.addActionListener(ev -> {
-                boolean ok = InstaDialog.showConfirm(this, "¿Eliminar esta publicación?", "Eliminar", true);
-                if (ok) {
-                    sistema.eliminarPublicacion(p);
-                    if ("Profile".equals(vistaActual)) {
-                        cargarVistaPerfil(sistema.getUsuarioActual().getUsername());
-                    } else {
-                        cargarVistaFeed();
-                    }
-                }
-            });
-            menu.add(itemDel);
-            btnOpts.addActionListener(ev -> menu.show(btnOpts, 0, btnOpts.getHeight()));
-            header.add(btnOpts, BorderLayout.EAST);
-        }
+    JPanel userInfo = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+    userInfo.setBackground(C_WHITE);
+    userInfo.add(new JLabel(cargarFotoCircular(p.getAutor(), 32)));
+    JLabel lblUser = new JLabel(p.getAutor());
+    lblUser.setFont(F_BOLD);
+    lblUser.setForeground(C_TEXT);
+    lblUser.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    lblUser.addMouseListener(click(() -> cargarVistaPerfil(p.getAutor())));
+    userInfo.add(lblUser);
+    userInfo.add(badgeVerificado(p.getAutor()));
+    header.add(userInfo, BorderLayout.WEST);
 
-        // Imagen cropeada — fondo blanco garantizado
-        JLabel lblImg = new JLabel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                g.setColor(C_WHITE);
-                g.fillRect(0, 0, getWidth(), getHeight());
-                if (getIcon() != null) {
-                    getIcon().paintIcon(this, g, 0, 0);
-                }
-            }
-        };
-        lblImg.setPreferredSize(new Dimension(POST_W, IMG_H));
-        lblImg.setMinimumSize(new Dimension(POST_W, IMG_H));
-        lblImg.setMaximumSize(new Dimension(POST_W, IMG_H));
-        try {
-            if (p.getRutaImagen() != null && !p.getRutaImagen().isEmpty() && new File(p.getRutaImagen()).exists()) {
-                ImageIcon cr = crearImagenCropeada(p.getRutaImagen(), POST_W, IMG_H);
-                if (cr != null) {
-                    lblImg.setIcon(cr);
-                }
-            }
-        } catch (Exception ignored) {
-        }
+    // Botón seguir si es default no seguido
+    boolean esDefaultNoSeguido = sistema.getUsuarioActual() != null
+            && java.util.Arrays.asList(InicializadorCuentasDefault.USERNAMES_DEFAULT)
+                .contains(p.getAutor())
+            && !p.getAutor().equals(sistema.getUsuarioActual().getUsername())
+            && !sistema.yaLoSigo(p.getAutor());
 
-        JPanel acciones = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 8));
-        acciones.setBackground(C_WHITE);
-        acciones.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0));
-        boolean liked = sistema.yaDioLike(p.getAutor(), p.getFecha().toString());
-        JButton btnLike = iconBtn(liked);
-        btnLike.addActionListener(ev -> {
-            boolean estado = sistema.toggleLike(p.getAutor(), p.getFecha().toString(), p.getRutaImagen());
-            actualizarLike(btnLike, estado);
-            if (estado) {
-                clienteSocket.enviar(new red.EventoSocket(
-                        red.EventoSocket.Tipo.NUEVA_NOTIFICACION,
-                        sistema.getUsuarioActual().getUsername(), p.getAutor()));
+    if (esDefaultNoSeguido) {
+        JPanel rightHeader = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 6));
+        rightHeader.setBackground(C_WHITE);
+        JLabel lblSug = new JLabel("Sugerencia");
+        lblSug.setFont(F_SMALL);
+        lblSug.setForeground(C_TEXT_LIGHT);
+        JButton btnSeguir = buildPrimaryBtn("Seguir");
+        btnSeguir.setPreferredSize(new Dimension(80, 28));
+        btnSeguir.setFont(new Font("Arial", Font.BOLD, 11));
+        btnSeguir.addActionListener(ev -> {
+            sistema.seguirUsuario(p.getAutor());
+            cargarVistaFeed();
+        });
+        rightHeader.add(lblSug);
+        rightHeader.add(btnSeguir);
+        header.add(rightHeader, BorderLayout.EAST);
+    }
+
+    // Botón "..." solo en mis posts
+    if (sistema.getUsuarioActual() != null
+            && p.getAutor().equals(sistema.getUsuarioActual().getUsername())) {
+        JButton btnOpts = new JButton();
+        if (iconsNormal.containsKey("More")) btnOpts.setIcon(iconsNormal.get("More"));
+        else { btnOpts.setText("..."); btnOpts.setFont(new Font("Arial", Font.BOLD, 14)); }
+        btnOpts.setBorderPainted(false);
+        btnOpts.setContentAreaFilled(false);
+        btnOpts.setFocusPainted(false);
+        btnOpts.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        JPopupMenu menu = new JPopupMenu();
+        menu.setBorder(new LineBorder(C_BORDER, 1));
+        JMenuItem itemDel = new JMenuItem("Eliminar publicación");
+        itemDel.setFont(F_BOLD);
+        itemDel.setForeground(C_ERROR);
+        itemDel.addActionListener(ev -> {
+            boolean ok = InstaDialog.showConfirm(this, "¿Eliminar esta publicación?", "Eliminar", true);
+            if (ok) {
+                sistema.eliminarPublicacion(p);
+                if ("Profile".equals(vistaActual))
+                    cargarVistaPerfil(sistema.getUsuarioActual().getUsername());
+                else cargarVistaFeed();
             }
         });
-        JButton btnComment = iconBtn("Comment", false);
-        btnComment.addActionListener(ev -> abrirComentarios(p));
+        menu.add(itemDel);
+        btnOpts.addActionListener(ev -> menu.show(btnOpts, 0, btnOpts.getHeight()));
+        header.add(btnOpts, BorderLayout.EAST);
+    }
 
-        JButton btnShare = iconBtn("Share", false);
-        btnShare.addActionListener(ev -> {
-            String dest = InstaDialog.showInput(this, "Enviar por mensaje a...", "Nombre de usuario");
-            if (dest == null || dest.isEmpty()) {
-                return;
-            }
-            Usuario destU = sistema.buscarUsuario(dest);
-            if (destU == null) {
-                InstaDialog.showMessage(this, "El usuario @" + dest + " no existe.", true);
-                return;
-            }
-            if (destU.getEstadoCuenta() == EstadoCuenta.DESACTIVADO) {
-                InstaDialog.showMessage(this, "Esa cuenta no está disponible.", true);
-                return;
-            }
-            if (!sistema.puedeEnviarMensaje(dest)) {
-                InstaDialog.showMessage(this, "No puedes enviar mensajes a @" + dest
-                        + ".\nSu cuenta es privada — deben seguirse mutuamente.", true);
-                return;
-            }
-            if (!sistema.puedeCompartirPost(dest, p.getAutor())) {
-                InstaDialog.showMessage(this, "No puedes compartir este post con @" + dest
-                        + ".\nEl autor tiene cuenta privada.", true);
-                return;
-            }
-            sistema.compartirPost(dest, p.getAutor(), p.getRutaImagen(), p.getContenido());
-            boolean irChat = InstaDialog.showConfirm(this,
-                    "Post enviado a @" + dest + " \n¿Abrir el chat?", "Abrir", false);
-            if (irChat) {
-                SwingUtilities.invokeLater(() -> cargarVistaInboxCon(dest));
-            }
-        });
+    // ── Imagen ───────────────────────────────────────────────
+    JLabel lblImg = new JLabel() {
+        @Override protected void paintComponent(Graphics g) {
+            g.setColor(C_WHITE);
+            g.fillRect(0, 0, getWidth(), getHeight());
+            if (getIcon() != null) getIcon().paintIcon(this, g, 0, 0);
+        }
+    };
+    lblImg.setPreferredSize(new Dimension(POST_W, IMG_H));
+    lblImg.setMinimumSize(new Dimension(POST_W, IMG_H));
+    lblImg.setMaximumSize(new Dimension(POST_W, IMG_H));
+    try {
+        if (p.getRutaImagen() != null && !p.getRutaImagen().isEmpty()
+                && new File(p.getRutaImagen()).exists()) {
+            ImageIcon cr = crearImagenCropeada(p.getRutaImagen(), POST_W, IMG_H);
+            if (cr != null) lblImg.setIcon(cr);
+        }
+    } catch (Exception ignored) {}
 
-        acciones.add(btnLike);
-        acciones.add(btnComment);
-        acciones.add(btnShare);
+    // ── Acciones con contadores ──────────────────────────────
+    JPanel acciones = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 8));
+    acciones.setBackground(C_WHITE);
+    acciones.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0));
 
-        // Footer
-        JPanel footer = new JPanel();
-        footer.setLayout(new BoxLayout(footer, BoxLayout.Y_AXIS));
-        footer.setBackground(C_WHITE);
-        footer.setBorder(BorderFactory.createEmptyBorder(0, 12, 10, 12));
-        footer.add(acciones);
+    boolean liked = sistema.yaDioLike(p.getAutor(), p.getFecha().toString());
+    JButton btnLike    = iconBtn(liked);
+    JButton btnComment = iconBtn("Comment", false);
+    JButton btnShare   = iconBtn("Share", false);
 
+    int totalLikes = sistema.getCantidadLikes(p.getAutor(), p.getFecha().toString());
+    int totalComs  = sistema.getComentarios(p.getAutor(), p.getFecha().toString()).size();
+
+    JLabel lblLikes = new JLabel(totalLikes > 0 ? String.valueOf(totalLikes) : "");
+    lblLikes.setFont(F_SMALL);
+    lblLikes.setForeground(C_TEXT_LIGHT);
+
+    JLabel lblComs = new JLabel(totalComs > 0 ? String.valueOf(totalComs) : "");
+    lblComs.setFont(F_SMALL);
+    lblComs.setForeground(C_TEXT_LIGHT);
+
+    // Like
+    btnLike.addActionListener(ev -> {
+        if (sistema.getUsuarioActual() == null) return;
+        boolean estado = sistema.toggleLike(p.getAutor(), p.getFecha().toString(), p.getRutaImagen());
+        actualizarLike(btnLike, estado);
+        int nuevos = sistema.getCantidadLikes(p.getAutor(), p.getFecha().toString());
+        lblLikes.setText(nuevos > 0 ? String.valueOf(nuevos) : "");
+        if (estado && !sistema.getUsuarioActual().getUsername().equals(p.getAutor())) {
+            clienteSocket.enviar(new red.EventoSocket(
+                red.EventoSocket.Tipo.NUEVA_NOTIFICACION,
+                sistema.getUsuarioActual().getUsername(), p.getAutor()));
+        }
+    });
+
+    // Comentario — un solo listener
+    btnComment.addActionListener(ev -> abrirComentarios(p));
+
+    // Share — con overlay
+    btnShare.addActionListener(ev -> {
+        if (sistema.getUsuarioActual() == null) return;
+        JPanel glass = mostrarOverlay();
+        String dest = InstaDialog.showInput(this, "Enviar por mensaje a...", "Nombre de usuario");
+        quitarOverlay(glass);
+        if (dest == null || dest.isEmpty()) return;
+        Usuario destU = sistema.buscarUsuario(dest);
+        if (destU == null) {
+            InstaDialog.showMessage(this, "El usuario @" + dest + " no existe.", true);
+            return;
+        }
+        if (destU.getEstadoCuenta() == EstadoCuenta.DESACTIVADO) {
+            InstaDialog.showMessage(this, "Esa cuenta no está disponible.", true);
+            return;
+        }
+        if (!sistema.puedeEnviarMensaje(dest)) {
+            InstaDialog.showMessage(this, "No puedes enviar mensajes a @" + dest
+                + ".\nSu cuenta es privada — deben seguirse mutuamente.", true);
+            return;
+        }
+        if (!sistema.puedeCompartirPost(dest, p.getAutor())) {
+            InstaDialog.showMessage(this, "No puedes compartir este post con @" + dest
+                + ".\nEl autor tiene cuenta privada.", true);
+            return;
+        }
+        sistema.compartirPost(dest, p.getAutor(), p.getRutaImagen(), p.getContenido());
+        boolean irChat = InstaDialog.showConfirm(this,
+            "Post enviado a @" + dest + " \n¿Abrir el chat?", "Abrir", false);
+        if (irChat) SwingUtilities.invokeLater(() -> cargarVistaInboxCon(dest));
+    });
+
+    acciones.add(btnLike);
+    acciones.add(lblLikes);
+    acciones.add(Box.createHorizontalStrut(8));
+    acciones.add(btnComment);
+    acciones.add(lblComs);
+    acciones.add(Box.createHorizontalStrut(8));
+    acciones.add(btnShare);
+
+    // ── Footer ───────────────────────────────────────────────
+    JPanel footer = new JPanel();
+    footer.setLayout(new BoxLayout(footer, BoxLayout.Y_AXIS));
+    footer.setBackground(C_WHITE);
+    footer.setBorder(BorderFactory.createEmptyBorder(0, 12, 10, 12));
+    footer.add(acciones);
+
+    // Caption — solo si tiene contenido
+    String contenido = p.getContenido();
+    if (contenido != null && !contenido.isEmpty()) {
         JEditorPane edCaption = new JEditorPane("text/html", "");
         edCaption.setEditable(false);
         edCaption.setOpaque(false);
-        edCaption.setText("<html><font face='Arial' size='3'><b>" + p.getAutor() + "</b> " + toHtml(p.getContenido()) + "</font></html>");
+        edCaption.setText("<html><font face='Arial' size='3'><b>"
+            + p.getAutor() + "</b> " + toHtml(contenido) + "</font></html>");
         edCaption.addHyperlinkListener(e -> {
             if (e.getEventType() == javax.swing.event.HyperlinkEvent.EventType.ACTIVATED) {
                 String h = e.getDescription();
-                if (h.startsWith("#")) {
-                    cargarVistaBusquedaHashtag(h);
-                } else if (h.startsWith("@")) {
-                    cargarVistaPerfil(h.substring(1));
-                }
+                if (h.startsWith("#")) cargarVistaBusquedaHashtag(h);
+                else if (h.startsWith("@")) cargarVistaPerfil(h.substring(1));
             }
         });
         footer.add(edCaption);
-
-        ArrayList<String> comentarios = sistema.getComentarios(p.getAutor(), p.getFecha().toString());
-        if (!comentarios.isEmpty()) {
-            int mostrar = Math.min(2, comentarios.size());
-            for (int i = 0; i < mostrar; i++) {
-                String c = comentarios.get(i);
-                String[] pts = c.split(":", 2);
-                String comUser = pts[0].trim();
-                String comText = pts.length > 1 ? pts[1].trim() : c;
-                JPanel comRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
-                comRow.setBackground(C_WHITE);
-                JLabel lu = new JLabel(comUser);
-                lu.setFont(F_BOLD);
-                lu.setForeground(C_TEXT);
-                lu.setCursor(new Cursor(Cursor.HAND_CURSOR));
-                lu.addMouseListener(click(() -> cargarVistaPerfil(comUser)));
-                JLabel lt = new JLabel(comText.length() > 60 ? comText.substring(0, 57) + "…" : comText);
-                lt.setFont(F_REGULAR);
-                lt.setForeground(C_TEXT);
-                comRow.add(lu);
-                comRow.add(lt);
-                footer.add(comRow);
-            }
-            if (comentarios.size() > 2) {
-                JLabel verMas = new JLabel("Ver los " + comentarios.size() + " comentarios");
-                verMas.setFont(F_SMALL);
-                verMas.setForeground(C_TEXT_LIGHT);
-                verMas.setCursor(new Cursor(Cursor.HAND_CURSOR));
-                verMas.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
-                verMas.addMouseListener(click(() -> abrirComentarios(p)));
-                footer.add(verMas);
-            }
-        }
-
-        JPanel fechaRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        fechaRow.setBackground(C_WHITE);
-        JLabel lblFecha = new JLabel(p.getFecha() + "  " + p.getHoraFormateada());
-        lblFecha.setFont(F_SMALL);
-        lblFecha.setForeground(C_TEXT_LIGHT);
-        lblFecha.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
-        fechaRow.add(lblFecha);
-        footer.add(fechaRow);
-
-        post.add(header, BorderLayout.NORTH);
-        post.add(lblImg, BorderLayout.CENTER);
-        post.add(footer, BorderLayout.SOUTH);
-        return post;
     }
+
+    // Comentarios preview (max 2)
+    ArrayList<String> comentarios = sistema.getComentarios(p.getAutor(), p.getFecha().toString());
+    if (!comentarios.isEmpty()) {
+        int mostrar = Math.min(2, comentarios.size());
+        for (int i = 0; i < mostrar; i++) {
+            String c = comentarios.get(i);
+            String[] pts = c.split(":", 2);
+            String comUser = pts[0].trim();
+            String comText = pts.length > 1 ? pts[1].trim() : c;
+            // Saltar stickers en preview del feed
+            if (comText.startsWith("STICKER:")) continue;
+            JPanel comRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            comRow.setBackground(C_WHITE);
+            JLabel lu = new JLabel(comUser);
+            lu.setFont(F_BOLD); lu.setForeground(C_TEXT);
+            lu.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            lu.addMouseListener(click(() -> cargarVistaPerfil(comUser)));
+            JLabel lt = new JLabel(comText.length() > 60 ? comText.substring(0, 57) + "…" : comText);
+            lt.setFont(F_REGULAR); lt.setForeground(C_TEXT);
+            comRow.add(lu); comRow.add(lt);
+            footer.add(comRow);
+        }
+        if (comentarios.size() > 2) {
+            JLabel verMas = new JLabel("Ver los " + comentarios.size() + " comentarios");
+            verMas.setFont(F_SMALL); verMas.setForeground(C_TEXT_LIGHT);
+            verMas.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            verMas.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
+            verMas.addMouseListener(click(() -> abrirComentarios(p)));
+            footer.add(verMas);
+        }
+    }
+
+    // Fecha
+    JPanel fechaRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    fechaRow.setBackground(C_WHITE);
+    JLabel lblFecha = new JLabel(p.getFecha() + "  " + p.getHoraFormateada());
+    lblFecha.setFont(F_SMALL); lblFecha.setForeground(C_TEXT_LIGHT);
+    lblFecha.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
+    fechaRow.add(lblFecha);
+    footer.add(fechaRow);
+
+    post.add(header, BorderLayout.NORTH);
+    post.add(lblImg, BorderLayout.CENTER);
+    post.add(footer, BorderLayout.SOUTH);
+    return post;
+}
 
     /**
      * Crop centrado con fondo blanco garantizado — elimina el gris de canal
@@ -896,13 +959,17 @@ public class VentanaPrincipal extends JFrame {
         lblTit.setFont(F_BOLD);
         lblTit.setForeground(C_TEXT);
         header.add(lblTit, BorderLayout.WEST);
-        JButton btnC = new JButton("✕");
-        btnC.setFont(new Font("Arial", Font.PLAIN, 13));
+        JButton btnC = new JButton();
+        if (iconsNormal.containsKey("Close")) {
+            btnC.setIcon(iconsNormal.get("Close"));
+        } else {
+            btnC.setText("✕");
+            btnC.setFont(new Font("Arial", Font.PLAIN, 13));
+        }
         btnC.setBorderPainted(false);
         btnC.setContentAreaFilled(false);
         btnC.setFocusPainted(false);
         btnC.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btnC.setForeground(C_TEXT_LIGHT);
         btnC.addActionListener(e -> win.dispose());
         header.add(btnC, BorderLayout.EAST);
         root.add(header, BorderLayout.NORTH);
@@ -950,32 +1017,45 @@ public class VentanaPrincipal extends JFrame {
         };
         rellenar.run();
         root.add(scroll, BorderLayout.CENTER);
-
         JPanel footer = new JPanel(new BorderLayout());
         footer.setBackground(C_WHITE);
-        footer.setBorder(BorderFactory.createCompoundBorder(new MatteBorder(1, 0, 0, 0, C_BORDER), BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+        footer.setBorder(BorderFactory.createCompoundBorder(
+                new MatteBorder(1, 0, 0, 0, C_BORDER),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+
         JTextField txt = new JTextField();
         txt.setFont(F_REGULAR);
         txt.setBackground(C_FIELD);
-        txt.setBorder(BorderFactory.createCompoundBorder(new LineBorder(C_BORDER, 1, true), BorderFactory.createEmptyBorder(7, 12, 7, 12)));
+        txt.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(C_BORDER, 1, true),
+                BorderFactory.createEmptyBorder(7, 12, 7, 12)));
         txt.putClientProperty("JTextField.placeholderText", "Agrega un comentario...");
-        JButton btnEnv = new JButton("Publicar");
+
+        JButton btnEnv = new JButton("Post!");
         btnEnv.setFont(F_BOLD);
         btnEnv.setForeground(C_BLUE);
         btnEnv.setBorderPainted(false);
         btnEnv.setContentAreaFilled(false);
         btnEnv.setFocusPainted(false);
         btnEnv.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
         ActionListener send = e -> {
             if (!txt.getText().trim().isEmpty()) {
                 sistema.agregarComentario(p.getAutor(), p.getFecha().toString(), txt.getText().trim());
+                if (!sistema.getUsuarioActual().getUsername().equals(p.getAutor())) {
+                    clienteSocket.enviar(new red.EventoSocket(
+                            red.EventoSocket.Tipo.NUEVA_NOTIFICACION,
+                            sistema.getUsuarioActual().getUsername(), p.getAutor()));
+                }
                 txt.setText("");
                 rellenar.run();
-                SwingUtilities.invokeLater(() -> scroll.getVerticalScrollBar().setValue(scroll.getVerticalScrollBar().getMaximum()));
+                SwingUtilities.invokeLater(()
+                        -> scroll.getVerticalScrollBar().setValue(scroll.getVerticalScrollBar().getMaximum()));
             }
         };
         btnEnv.addActionListener(send);
         txt.addActionListener(send);
+
         footer.add(txt, BorderLayout.CENTER);
         footer.add(btnEnv, BorderLayout.EAST);
         root.add(footer, BorderLayout.SOUTH);
@@ -1109,8 +1189,8 @@ public class VentanaPrincipal extends JFrame {
         btnCancel.addActionListener(e -> d.dispose());
         btnPost.addActionListener(e -> {
             String texto = txtC.getText().trim();
-            if (texto.isEmpty() || ruta[0].isEmpty()) {
-                InstaDialog.showMessage(d, "Escribe algo y selecciona una imagen.");
+            if (ruta[0].isEmpty()) {
+                InstaDialog.showMessage(d, "Selecciona una imagen.");
                 return;
             }
             StringBuilder ht = new StringBuilder(), mn = new StringBuilder();
@@ -1167,6 +1247,10 @@ public class VentanaPrincipal extends JFrame {
             sidebarBtn("Notificaciones", "Notifications", hayNotifs),
             sidebarBtn("Mi perfil", "Profile", false)
         };
+        btnSidebarMensajes = btns[2];
+        btnSidebarNotificaciones = btns[4];
+        btnSidebarMensajes.putClientProperty("hasDot", hayMsgs);
+        btnSidebarNotificaciones.putClientProperty("hasDot", hayNotifs);
         for (JButton b : btns) {
             sidebar.add(b);
         }
@@ -1204,7 +1288,8 @@ public class VentanaPrincipal extends JFrame {
     private boolean tieneNotificacionesPendientes() {
         return !sistema.getSolicitudes().isEmpty()
                 || !sistema.getNotificacionesGenerales().isEmpty()
-                || !sistema.getNotificacionesLikes().isEmpty();
+                || !sistema.getNotificacionesLikes().isEmpty()
+                || !sistema.getNotificacionesComentarios().isEmpty();
     }
 
     private JButton sidebarBtn(String label, String key, boolean hasDot) {
@@ -1213,7 +1298,10 @@ public class VentanaPrincipal extends JFrame {
             @Override
             protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
-                if (hasDot) {
+                // Leer el estado actual del punto desde clientProperty
+                Object prop = getClientProperty("hasDot");
+                boolean dot = prop instanceof Boolean && (Boolean) prop;
+                if (dot) {
                     Graphics2D g2 = (Graphics2D) g.create();
                     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                     g2.setColor(C_ERROR);
@@ -1222,6 +1310,7 @@ public class VentanaPrincipal extends JFrame {
                 }
             }
         };
+        b.putClientProperty("hasDot", hasDot);
         b.setAlignmentX(Component.LEFT_ALIGNMENT);
         b.setMaximumSize(new Dimension(220, 58));
         b.setMinimumSize(new Dimension(220, 58));
@@ -1694,6 +1783,11 @@ public class VentanaPrincipal extends JFrame {
                 return;
             }
             sistema.agregarComentario(p.getAutor(), p.getFecha().toString(), tx);
+            if (!sistema.getUsuarioActual().getUsername().equals(p.getAutor())) {
+                clienteSocket.enviar(new red.EventoSocket(
+                        red.EventoSocket.Tipo.NUEVA_NOTIFICACION,
+                        sistema.getUsuarioActual().getUsername(), p.getAutor()));
+            }
             JPanel nr = new JPanel(new BorderLayout());
             nr.setBackground(C_WHITE);
             nr.setBorder(BorderFactory.createEmptyBorder(10, 14, 8, 14));
@@ -2002,7 +2096,7 @@ public class VentanaPrincipal extends JFrame {
         JLabel nomReal = new JLabel(u.getNombreCompleto());
         nomReal.setFont(F_SMALL);
         nomReal.setForeground(C_TEXT_LIGHT);
-        nomReal.setBorder(BorderFactory.createEmptyBorder(2, 4, 0, 0));
+        nomReal.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
         textos.add(nomReal);
 
         left.add(textos, BorderLayout.CENTER);
@@ -2382,7 +2476,8 @@ public class VentanaPrincipal extends JFrame {
         JScrollPane scrollP = (JScrollPane) SwingUtilities.getAncestorOfClass(JScrollPane.class, panel);
         JScrollBar vbar = scrollP != null ? scrollP.getVerticalScrollBar() : null;
         int curVal = vbar != null ? vbar.getValue() : 0;
-        boolean atBottom = vbar == null || vbar.getValue() >= vbar.getMaximum() - 200;
+        boolean atBottom = vbar == null || vbar.getMaximum() <= vbar.getVisibleAmount() + 200
+                || vbar.getValue() >= vbar.getMaximum() - vbar.getVisibleAmount() - 50;
         panel.removeAll();
 
         for (Mensaje m : hist) {
@@ -2621,7 +2716,11 @@ public class VentanaPrincipal extends JFrame {
         panel.repaint();
         SwingUtilities.invokeLater(() -> {
             if (vbar != null) {
-                vbar.setValue(atBottom ? vbar.getMaximum() : curVal);
+                if (atBottom) {
+                    vbar.setValue(vbar.getMaximum());
+                } else {
+                    vbar.setValue(curVal);
+                }
             }
         });
     }
@@ -2731,6 +2830,37 @@ public class VentanaPrincipal extends JFrame {
             }
         }
 
+        // Después del bloque de likes, agrega:
+        ArrayList<String> comentariosNotif = sistema.getNotificacionesComentarios();
+        if (!comentariosNotif.isEmpty()) {
+            hay = true;
+            content.add(sectionTitle("Comentarios en tus publicaciones"));
+            for (String linea : comentariosNotif) {
+                String[] d = linea.split("\\|", 4);
+                if (d.length < 3) {
+                    continue;
+                }
+                String quien = d[2];
+                String texto = d.length >= 4 ? d[3] : "";
+                JPanel row = new JPanel(new BorderLayout(10, 0));
+                row.setBackground(C_WHITE);
+                row.setMaximumSize(new Dimension(650, 64));
+                row.setBorder(BorderFactory.createCompoundBorder(
+                        new LineBorder(C_BORDER, 1),
+                        BorderFactory.createEmptyBorder(10, 14, 10, 14)));
+                row.add(new JLabel(cargarFotoCircular(quien, 36)), BorderLayout.WEST);
+                JLabel txt = new JLabel("<html><b>" + quien + "</b> comentó: "
+                        + (texto.length() > 40 ? texto.substring(0, 37) + "…" : texto) + "</html>");
+                txt.setFont(F_REGULAR);
+                txt.setForeground(C_TEXT);
+                txt.setCursor(new Cursor(Cursor.HAND_CURSOR));
+                txt.addMouseListener(click(() -> cargarVistaPerfil(quien)));
+                row.add(txt, BorderLayout.CENTER);
+                content.add(row);
+                content.add(Box.createVerticalStrut(6));
+            }
+        }
+
         ArrayList<Publicacion> menciones = sistema.getMenciones();
         if (!menciones.isEmpty()) {
             hay = true;
@@ -2824,7 +2954,7 @@ public class VentanaPrincipal extends JFrame {
         JPanel glass = mostrarOverlay();
         JDialog d = new JDialog(this, "Editar perfil", true);
         d.setUndecorated(true);
-        d.setSize(520, 450);
+        d.setSize(520, 580);
         d.setLocationRelativeTo(this);
         d.setLayout(new BorderLayout());
         d.getContentPane().setBackground(C_WHITE);
@@ -2833,20 +2963,48 @@ public class VentanaPrincipal extends JFrame {
             public void windowClosed(WindowEvent e) {
                 quitarOverlay(glass);
             }
+
+            @Override
+            public void windowClosing(WindowEvent e) {
+                quitarOverlay(glass);
+            }
         });
         d.add(buildDialogHeader("Editar perfil", d), BorderLayout.NORTH);
 
         JPanel body = new JPanel();
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
         body.setBackground(C_WHITE);
-        body.setBorder(BorderFactory.createEmptyBorder(20, 24, 20, 24));
+        body.setBorder(BorderFactory.createEmptyBorder(16, 24, 16, 24));
 
+        // Nombre completo
         JLabel lN = new JLabel("Nombre completo");
         lN.setFont(F_SMALL);
         lN.setForeground(C_TEXT_LIGHT);
         JTextField tN = buildField(sistema.getUsuarioActual().getNombreCompleto());
         tN.setText(sistema.getUsuarioActual().getNombreCompleto());
         tN.setForeground(C_TEXT);
+
+        // Edad
+        JLabel lEdad = new JLabel("Edad");
+        lEdad.setFont(F_SMALL);
+        lEdad.setForeground(C_TEXT_LIGHT);
+        JSpinner spnEdad = buildSpinner(sistema.getUsuarioActual().getEdad());
+
+        // Género
+        JLabel lGen = new JLabel("Género");
+        lGen.setFont(F_SMALL);
+        lGen.setForeground(C_TEXT_LIGHT);
+        JComboBox<String> cmbGenero = buildCombo("M", "F");
+        cmbGenero.setSelectedIndex(sistema.getUsuarioActual().getGenero() == 'M' ? 0 : 1);
+
+        // Tipo de cuenta
+        JLabel lTipo = new JLabel("Tipo de cuenta");
+        lTipo.setFont(F_SMALL);
+        lTipo.setForeground(C_TEXT_LIGHT);
+        JComboBox<String> cmbTipo = buildCombo("Pública", "Privada");
+        cmbTipo.setSelectedIndex(sistema.getUsuarioActual().getTipoCuenta() == TipoCuenta.PUBLICA ? 0 : 1);
+
+        // Contraseña
         JLabel lP = new JLabel("Nueva contraseña (vacío = no cambiar)");
         lP.setFont(F_SMALL);
         lP.setForeground(C_TEXT_LIGHT);
@@ -2855,6 +3013,7 @@ public class VentanaPrincipal extends JFrame {
         tP.setFont(F_REGULAR);
         tP.setBorder(BorderFactory.createCompoundBorder(new LineBorder(C_BORDER, 1, true), BorderFactory.createEmptyBorder(9, 12, 9, 12)));
 
+        // Foto
         JButton bF = buildSecondaryBtn("Cambiar foto de perfil");
         final String[] nF = {null};
         bF.addActionListener(e -> {
@@ -2870,14 +3029,48 @@ public class VentanaPrincipal extends JFrame {
             }
         });
 
+        // Fila edad + género + tipo
+        JPanel filaExtra = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        filaExtra.setBackground(C_WHITE);
+        filaExtra.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+        JPanel colEdad = new JPanel(new BorderLayout());
+        colEdad.setBackground(C_WHITE);
+        JLabel leE = new JLabel("Edad");
+        leE.setFont(F_SMALL);
+        leE.setForeground(C_TEXT_LIGHT);
+        spnEdad.setPreferredSize(new Dimension(80, 34));
+        colEdad.add(leE, BorderLayout.NORTH);
+        colEdad.add(spnEdad, BorderLayout.CENTER);
+        JPanel colGen = new JPanel(new BorderLayout());
+        colGen.setBackground(C_WHITE);
+        JLabel leG = new JLabel("Género");
+        leG.setFont(F_SMALL);
+        leG.setForeground(C_TEXT_LIGHT);
+        cmbGenero.setPreferredSize(new Dimension(90, 34));
+        colGen.add(leG, BorderLayout.NORTH);
+        colGen.add(cmbGenero, BorderLayout.CENTER);
+        JPanel colTipo = new JPanel(new BorderLayout());
+        colTipo.setBackground(C_WHITE);
+        JLabel leT = new JLabel("Tipo cuenta");
+        leT.setFont(F_SMALL);
+        leT.setForeground(C_TEXT_LIGHT);
+        cmbTipo.setPreferredSize(new Dimension(110, 34));
+        colTipo.add(leT, BorderLayout.NORTH);
+        colTipo.add(cmbTipo, BorderLayout.CENTER);
+        filaExtra.add(colEdad);
+        filaExtra.add(colGen);
+        filaExtra.add(colTipo);
+
         body.add(lN);
         body.add(Box.createVerticalStrut(4));
         body.add(tN);
-        body.add(Box.createVerticalStrut(14));
+        body.add(Box.createVerticalStrut(12));
+        body.add(filaExtra);
+        body.add(Box.createVerticalStrut(12));
         body.add(lP);
         body.add(Box.createVerticalStrut(4));
         body.add(tP);
-        body.add(Box.createVerticalStrut(16));
+        body.add(Box.createVerticalStrut(12));
         body.add(bF);
         d.add(body, BorderLayout.CENTER);
 
@@ -2897,20 +3090,39 @@ public class VentanaPrincipal extends JFrame {
                 InstaDialog.showMessage(d, "El nombre no puede estar vacío.", true);
                 return;
             }
+            if ((int) spnEdad.getValue() < 18) {
+                InstaDialog.showMessage(d, "Debes tener al menos 18 años.", true);
+                return;
+            }
             String pass = new String(tP.getPassword()).trim();
-            boolean ok = sistema.actualizarDatosUsuario(nom, pass);
+            if (!pass.isEmpty() && pass.length() < 6) {
+                InstaDialog.showMessage(d, "La contraseña debe tener mínimo 6 caracteres.", true);
+                return;
+            }
+
+            // Actualizar nombre y contraseña
+            sistema.actualizarDatosUsuario(nom, pass);
+
+            // Actualizar edad
+            sistema.actualizarEdad((int) spnEdad.getValue());
+
+            // Actualizar género
+            char genero = cmbGenero.getSelectedIndex() == 0 ? 'M' : 'F';
+            sistema.actualizarGenero(genero);
+
+            // Actualizar tipo de cuenta
+            TipoCuenta tipo = cmbTipo.getSelectedIndex() == 0 ? TipoCuenta.PUBLICA : TipoCuenta.PRIVADA;
+            sistema.actualizarTipoCuenta(tipo);
+
             if (nF[0] != null) {
                 sistema.actualizarFotoPerfil(sistema.getUsuarioActual().getUsername(), nF[0]);
             }
-            if (ok) {
-                clienteSocket.enviar(new red.EventoSocket(
-                        red.EventoSocket.Tipo.ACTUALIZACION_PERFIL,
-                        sistema.getUsuarioActual().getUsername(), null));
-                d.dispose();
-                cargarVistaPerfil(sistema.getUsuarioActual().getUsername());
-            } else {
-                InstaDialog.showMessage(d, "Error al guardar.", true);
-            }
+
+            clienteSocket.enviar(new red.EventoSocket(
+                    red.EventoSocket.Tipo.ACTUALIZACION_PERFIL,
+                    sistema.getUsuarioActual().getUsername(), null));
+            d.dispose();
+            cargarVistaPerfil(sistema.getUsuarioActual().getUsername());
         });
         d.setVisible(true);
     }
@@ -2933,6 +3145,11 @@ public class VentanaPrincipal extends JFrame {
             public void windowClosed(WindowEvent e) {
                 quitarOverlay(glass);
             }
+
+            @Override
+            public void windowClosing(WindowEvent e) {
+                quitarOverlay(glass);
+            }
         });
         d.add(buildDialogHeader(titulo, d), BorderLayout.NORTH);
 
@@ -2950,6 +3167,7 @@ public class VentanaPrincipal extends JFrame {
             if (uCheck != null && uCheck.getEstadoCuenta() == EstadoCuenta.DESACTIVADO) {
                 continue;
             }
+
             JPanel row = new JPanel(new BorderLayout(10, 0));
             row.setBackground(C_WHITE);
             row.setMaximumSize(new Dimension(340, 62));
@@ -2974,11 +3192,9 @@ public class VentanaPrincipal extends JFrame {
 
             JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
             rightPanel.setBackground(C_WHITE);
-            boolean esMiPerfil = sistema.getUsuarioActual() != null
-                    && sistema.getListaFollowers(sistema.getUsuarioActual().getUsername()).equals(usuarios)
-                    || titulo.equals("Seguidores") && sistema.getUsuarioActual() != null;
-            if (esFollowers && ownerUsername.equals(sistema.getUsuarioActual().getUsername())) {
 
+            if (esFollowers && sistema.getUsuarioActual() != null
+                    && ownerUsername.equals(sistema.getUsuarioActual().getUsername())) {
                 JButton btnElim = new JButton();
                 if (iconsNormal.containsKey("Close")) {
                     btnElim.setIcon(iconsNormal.get("Close"));

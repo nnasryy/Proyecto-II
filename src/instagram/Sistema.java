@@ -140,8 +140,13 @@ public class Sistema implements Interaccion, Mensajeria {
         if (usuarioActual == null) {
             return false;
         }
-        eliminarLineaDeArchivo(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins", objetivo);
-        eliminarLineaDeArchivo(RUTA_RAIZ + "/" + objetivo + "/followers.ins", usuarioActual.getUsername());
+        eliminarLineaDeArchivo(
+                RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/following.ins", objetivo);
+        eliminarLineaDeArchivo(
+                RUTA_RAIZ + "/" + objetivo + "/followers.ins", usuarioActual.getUsername());
+
+        // ← Eliminar notificación de seguidor en el objetivo
+        eliminarNotificacionSeguidor(objetivo, usuarioActual.getUsername());
         return true;
     }
 
@@ -333,21 +338,28 @@ public class Sistema implements Interaccion, Mensajeria {
     // ══════════════════════════════════════════════════════════════
     public boolean crearPublicacion(String contenido, String rutaImagen,
             String hashtags, String menciones) {
-        if (usuarioActual == null || contenido.length() > 220) {
+        if (usuarioActual == null) {
             return false;
         }
+        // Permitir contenido vacío, solo validar longitud si hay contenido
+        if (contenido != null && contenido.length() > 220) {
+            return false;
+        }
+
+        String contenidoFinal = contenido != null ? contenido : "";
         PublicacionFoto nueva = new PublicacionFoto(
-                usuarioActual.getUsername(), contenido, rutaImagen, hashtags, menciones);
+                usuarioActual.getUsername(), contenidoFinal, rutaImagen, hashtags, menciones);
         String ruta = RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/insta.ins";
         try (FileWriter fw = new FileWriter(ruta, true)) {
             fw.write(nueva.toFileString() + "\n");
+            // Menciones solo si hay contenido
             if (menciones != null && !menciones.isEmpty()) {
                 for (String m : menciones.split(" ")) {
                     if (m.startsWith("@")) {
                         String men = m.substring(1);
                         if (existeUsername(men)) {
                             notificar(men, "MENCION|" + usuarioActual.getUsername()
-                                    + "|" + contenido + "|" + LocalDate.now());
+                                    + "|" + contenidoFinal + "|" + LocalDate.now());
                         }
                     }
                 }
@@ -551,27 +563,85 @@ public class Sistema implements Interaccion, Mensajeria {
         return contarLineas(RUTA_RAIZ + "/" + username + "/insta.ins");
     }
 
-   public int getCantidadFollowers(String username) {
-    ArrayList<String> lista = new ArrayList<>();
-    leerLineas(RUTA_RAIZ + "/" + username + "/followers.ins", lista);
-    int count = 0;
-    for (String u : lista) {
-        Usuario usr = buscarUsuario(u);
-        if (usr != null && usr.getEstadoCuenta() != EstadoCuenta.DESACTIVADO) count++;
+    public int getCantidadFollowers(String username) {
+        ArrayList<String> lista = new ArrayList<>();
+        leerLineas(RUTA_RAIZ + "/" + username + "/followers.ins", lista);
+        int count = 0;
+        for (String u : lista) {
+            Usuario usr = buscarUsuario(u);
+            if (usr != null && usr.getEstadoCuenta() != EstadoCuenta.DESACTIVADO) {
+                count++;
+            }
+        }
+        return count;
     }
-    return count;
-}
 
-public int getCantidadFollowing(String username) {
-    ArrayList<String> lista = new ArrayList<>();
-    leerLineas(RUTA_RAIZ + "/" + username + "/following.ins", lista);
-    int count = 0;
-    for (String u : lista) {
-        Usuario usr = buscarUsuario(u);
-        if (usr != null && usr.getEstadoCuenta() != EstadoCuenta.DESACTIVADO) count++;
+    public int getCantidadFollowing(String username) {
+        ArrayList<String> lista = new ArrayList<>();
+        leerLineas(RUTA_RAIZ + "/" + username + "/following.ins", lista);
+        int count = 0;
+        for (String u : lista) {
+            Usuario usr = buscarUsuario(u);
+            if (usr != null && usr.getEstadoCuenta() != EstadoCuenta.DESACTIVADO) {
+                count++;
+            }
+        }
+        return count;
     }
-    return count;
-}
+
+    public String getRutaLikesNotif() {
+        if (usuarioActual == null) {
+            return "";
+        }
+        return RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/likes_notif.ins";
+    }
+
+    public ArrayList<String> getNotificacionesComentarios() {
+        ArrayList<String> lista = new ArrayList<>();
+        if (usuarioActual == null) {
+            return lista;
+        }
+        File f = new File(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/likes_notif.ins");
+        if (!f.exists()) {
+            return lista;
+        }
+        try (Scanner sc = new Scanner(f)) {
+            while (sc.hasNextLine()) {
+                String l = sc.nextLine().trim();
+                if (l.startsWith("COMENTARIO|")) {
+                    lista.add(l);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        Collections.reverse(lista);
+        return lista;
+    }
+
+    public int getCantidadLikes(String autorPost, String fechaPost) {
+        File f = new File(RUTA_RAIZ + "/" + autorPost + "/likes.ins");
+        if (!f.exists()) {
+            return 0;
+        }
+        int count = 0;
+        String prefijo = autorPost + "|" + fechaPost + "|";
+        try (Scanner sc = new Scanner(f)) {
+            while (sc.hasNextLine()) {
+                String linea = sc.nextLine().trim();
+                if (linea.startsWith(prefijo)) {
+                    String[] partes = linea.split("\\|");
+                    if (partes.length >= 3) {
+                        Usuario u = buscarUsuario(partes[2]);
+                        if (u != null && u.getEstadoCuenta() != EstadoCuenta.DESACTIVADO) {
+                            count++;
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return count;
+    }
 
     // ══════════════════════════════════════════════════════════════
     //  FOLLOWS Y SOLICITUDES
@@ -691,6 +761,9 @@ public int getCantidadFollowing(String username) {
 
         if (yaLiked) {
             eliminarLineaDeArchivo(rutaLikes, lineaEx);
+            if (!usuarioActual.getUsername().equals(autorPost)) {
+                eliminarNotificacionLike(autorPost, fechaPost, usuarioActual.getUsername());
+            }
             return false;
         } else {
             try (FileWriter fw = new FileWriter(rutaLikes, true)) {
@@ -716,30 +789,25 @@ public int getCantidadFollowing(String username) {
         }
     }
 
-    public int getCantidadLikes(String autorPost, String fechaPost) {
-        File f = new File(RUTA_RAIZ + "/" + autorPost + "/likes.ins");
-        if (!f.exists()) {
-            return 0;
-        }
-        int count = 0;
-        String prefijo = autorPost + "|" + fechaPost + "|";
-        try (Scanner sc = new Scanner(f)) {
-            while (sc.hasNextLine()) {
-                if (sc.nextLine().trim().startsWith(prefijo)) {
-                    count++;
-                }
-            }
-        } catch (Exception ignored) {
-        }
-        return count;
-    }
-
     public ArrayList<String> getNotificacionesLikes() {
         ArrayList<String> notifs = new ArrayList<>();
         if (usuarioActual == null) {
             return notifs;
         }
-        leerLineas(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/likes_notif.ins", notifs);
+        File f = new File(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/likes_notif.ins");
+        if (!f.exists()) {
+            return notifs;
+        }
+        try (Scanner sc = new Scanner(f)) {
+            while (sc.hasNextLine()) {
+                String l = sc.nextLine().trim();
+                // Solo likes, no comentarios
+                if (!l.isEmpty() && !l.startsWith("COMENTARIO|")) {
+                    notifs.add(l);
+                }
+            }
+        } catch (Exception ignored) {
+        }
         Collections.reverse(notifs);
         return notifs;
     }
@@ -757,6 +825,22 @@ public int getCantidadFollowing(String username) {
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        // ← Notificar al autor del post si no es el mismo usuario
+        if (!usuarioActual.getUsername().equals(autorPost)) {
+            String rutaNotif = RUTA_RAIZ + "/" + autorPost + "/likes_notif.ins";
+            try {
+                File fn = new File(rutaNotif);
+                if (!fn.exists()) {
+                    fn.createNewFile();
+                }
+            } catch (IOException ignored) {
+            }
+            appendLine(rutaNotif, "COMENTARIO|" + fechaPost + "|"
+                    + usuarioActual.getUsername() + "|" + comentario);
+        }
+
+        // menciones existentes
         for (String p : comentario.split(" ")) {
             if (p.startsWith("@")) {
                 String men = p.substring(1);
@@ -776,7 +860,12 @@ public int getCantidadFollowing(String username) {
         }
         try (Scanner sc = new Scanner(f)) {
             while (sc.hasNextLine()) {
-                String[] d = sc.nextLine().split("\\|");
+                String linea = sc.nextLine().trim();
+                if (linea.isEmpty()) {
+                    continue;
+                }
+                // Usar split con límite 3 para preservar texto con | dentro
+                String[] d = linea.split("\\|", 3);
                 if (d.length >= 3 && d[0].equals(fechaPost)) {
                     lista.add(d[1] + ": " + d[2]);
                 }
@@ -816,6 +905,47 @@ public int getCantidadFollowing(String username) {
         leerLineas(RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/notifications.ins", lista);
         Collections.reverse(lista);
         return lista;
+    }
+
+    private void eliminarNotificacionSeguidor(String destino, String quien) {
+        String ruta = RUTA_RAIZ + "/" + destino + "/notifications.ins";
+        File f = new File(ruta);
+        if (!f.exists()) {
+            return;
+        }
+        ArrayList<String> lineas = new ArrayList<>();
+        try (Scanner sc = new Scanner(f)) {
+            while (sc.hasNextLine()) {
+                String l = sc.nextLine();
+                // Eliminar líneas tipo "SEGUIDOR|quien|fecha"
+                if (l.startsWith("SEGUIDOR|" + quien + "|")) {
+                    continue;
+                }
+                lineas.add(l);
+            }
+        } catch (Exception ignored) {
+        }
+        reescribirArchivo(ruta, lineas);
+    }
+
+    private void eliminarNotificacionLike(String autorPost, String fechaPost, String quien) {
+        String ruta = RUTA_RAIZ + "/" + autorPost + "/likes_notif.ins";
+        File f = new File(ruta);
+        if (!f.exists()) {
+            return;
+        }
+        ArrayList<String> lineas = new ArrayList<>();
+        try (Scanner sc = new Scanner(f)) {
+            while (sc.hasNextLine()) {
+                String l = sc.nextLine();
+                if (l.startsWith(autorPost + "|" + fechaPost + "|" + quien)) {
+                    continue;
+                }
+                lineas.add(l);
+            }
+        } catch (Exception ignored) {
+        }
+        reescribirArchivo(ruta, lineas);
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -1215,6 +1345,30 @@ public int getCantidadFollowing(String username) {
         return actualizarCampoUsuario(username, 5, nuevaRuta);
     }
 
+    public void actualizarEdad(int nuevaEdad) {
+        if (usuarioActual == null) {
+            return;
+        }
+        usuarioActual.setEdad(nuevaEdad);
+        actualizarCampoUsuario(usuarioActual.getUsername(), 4, String.valueOf(nuevaEdad));
+    }
+
+    public void actualizarGenero(char nuevoGenero) {
+        if (usuarioActual == null) {
+            return;
+        }
+        usuarioActual.setGenero(nuevoGenero);
+        actualizarCampoUsuario(usuarioActual.getUsername(), 3, String.valueOf(nuevoGenero));
+    }
+
+    public void actualizarTipoCuenta(TipoCuenta nuevoTipo) {
+        if (usuarioActual == null) {
+            return;
+        }
+        usuarioActual.setTipoCuenta(nuevoTipo);
+        actualizarCampoUsuario(usuarioActual.getUsername(), 7, nuevoTipo.name());
+    }
+
     // ══════════════════════════════════════════════════════════════
     //  SESIÓN
     // ══════════════════════════════════════════════════════════════
@@ -1527,6 +1681,7 @@ public int getCantidadFollowing(String username) {
         if (usuarioActual == null) {
             return;
         }
+
         reescribirArchivo(
                 RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/notifications.ins",
                 new ArrayList<>());
