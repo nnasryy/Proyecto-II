@@ -23,7 +23,7 @@ public class Publicacion {
         this.rutaImagen = rutaImagen;
         this.fecha = LocalDate.now();
         this.hora = LocalTime.now();
-        this.tipoMultimedia = "CUADRADA"; // Valor por defecto según tu código
+        this.tipoMultimedia = "CUADRADA"; 
         this.hashtags = hashtags;
         this.menciones = menciones;
     }
@@ -32,7 +32,6 @@ public class Publicacion {
     }
 
     public String toFileString() {
-        // autor|fecha|hora|contenido|hashtags|menciones|ruta|tipo
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("HH:mm:ss");
         return autor + "|"
                 + fecha.toString() + "|"
@@ -44,29 +43,26 @@ public class Publicacion {
                 + tipoMultimedia;
     }
 
-    // --- MÉTODO ESTÁTICO PARA LEER DESDE ARCHIVO ---
-    public static Publicacion fromFileString(String linea) {
-        try {
-            String[] datos = linea.split("\\|");
-            if (datos.length < 8) {
-                return null; 
-            }
-            Publicacion p = new Publicacion();
-            p.autor = datos[0];
-            p.fecha = LocalDate.parse(datos[1]);
-            p.hora = LocalTime.parse(datos[2], DateTimeFormatter.ofPattern("HH:mm:ss"));
-            p.contenido = datos[3];
-            p.hashtags = datos[4];
-            p.menciones = datos[5];
-            p.rutaImagen = datos[6];
-            p.tipoMultimedia = datos[7];
 
-            return p;
-        } catch (Exception e) {
-            System.out.println("Error al parsear publicación: " + e.getMessage());
-            return null;
-        }
+    public static Publicacion fromFileString(String linea) {
+    try {
+        String[] datos = linea.split("\\|", 8);
+        if (datos.length < 7) return null;
+        Publicacion p = new Publicacion();
+        p.autor          = datos[0].trim();
+        p.fecha          = LocalDate.parse(datos[1].trim());
+        p.hora           = LocalTime.parse(datos[2].trim(), DateTimeFormatter.ofPattern("HH:mm:ss"));
+        p.contenido      = datos[3].trim();
+        p.hashtags       = datos[4].trim();
+        p.menciones      = datos[5].trim();
+        p.rutaImagen     = datos[6].trim();
+        p.tipoMultimedia = datos.length >= 8 ? datos[7].trim() : "CUADRADA";
+        return p;
+    } catch (Exception e) {
+        System.out.println("Error al parsear publicación: " + e.getMessage());
+        return null;
     }
+}
     public ArrayList<String> extraerHashtags() {
     ArrayList<String> lista = new ArrayList<>();
     String[] palabras = contenido.split(" ");

@@ -2,14 +2,7 @@ package instagram;
 
 import java.util.ArrayList;
 
-/**
- * Lista enlazada de usuarios con métodos recursivos.
- *
- * Temas demostrados:
- *   - Nodos (NodoUsuario)
- *   - Lista enlazada (estructura cabeza → siguiente)
- *   - Recursividad (todos los métodos de búsqueda son recursivos)
- */
+
 public class ListaUsuarios {
 
     private NodoUsuario cabeza;
@@ -20,33 +13,25 @@ public class ListaUsuarios {
         this.tamanio = 0;
     }
 
-    // ── INSERTAR ────────────────────────────────────────────────
-
-    /** Agrega un usuario al final de la lista */
     public void agregar(Usuario u) {
         NodoUsuario nuevo = new NodoUsuario(u);
         if (cabeza == null) {
             cabeza = nuevo;
         } else {
-            agregarRecursivo(cabeza, nuevo);    // RECURSIVIDAD
+            agregarRecursivo(cabeza, nuevo);   
         }
         tamanio++;
     }
 
     private void agregarRecursivo(NodoUsuario actual, NodoUsuario nuevo) {
         if (actual.siguiente == null) {
-            actual.siguiente = nuevo;           // caso base: llegamos al final
+            actual.siguiente = nuevo;          
         } else {
-            agregarRecursivo(actual.siguiente, nuevo); // llamada recursiva
+            agregarRecursivo(actual.siguiente, nuevo); 
         }
     }
 
-    // ── BUSCAR (RECURSIVO) ───────────────────────────────────────
 
-    /**
-     * Búsqueda recursiva por username exacto.
-     * Ya existía en la clase original — se mantiene intacto.
-     */
     public Usuario buscarRecursivo(String username) {
         return buscarRecursivoAux(cabeza, username);
     }
@@ -57,9 +42,7 @@ public class ListaUsuarios {
         return buscarRecursivoAux(nodo.siguiente, username);   // llamada recursiva
     }
 
-    /**
-     * Verifica si existe un usuario con ese username (recursivo).
-     */
+  
     public boolean contiene(String username) {
         return contieneRecursivo(cabeza, username);
     }
@@ -67,13 +50,9 @@ public class ListaUsuarios {
     private boolean contieneRecursivo(NodoUsuario nodo, String username) {
         if (nodo == null)                                         return false;
         if (nodo.usuario.getUsername().equals(username))          return true;
-        return contieneRecursivo(nodo.siguiente, username);       // RECURSIVIDAD
+        return contieneRecursivo(nodo.siguiente, username);     
     }
 
-    /**
-     * Busca todos los usuarios cuyo username contenga el criterio (parcial).
-     * No incluye desactivados ni al usuario actual.
-     */
     public ArrayList<Usuario> buscarPorCriterio(String criterio, String excluirUsername) {
         ArrayList<Usuario> resultados = new ArrayList<>();
         buscarPorCriterioRecursivo(cabeza, criterio.toLowerCase(), excluirUsername, resultados);
@@ -91,9 +70,7 @@ public class ListaUsuarios {
         buscarPorCriterioRecursivo(nodo.siguiente, criterio, excluir, resultados); // RECURSIVIDAD
     }
 
-    // ── ELIMINAR ────────────────────────────────────────────────
 
-    /** Elimina el usuario con ese username de la lista */
     public boolean eliminar(String username) {
         if (cabeza == null) return false;
         if (cabeza.usuario.getUsername().equals(username)) {
@@ -114,12 +91,7 @@ public class ListaUsuarios {
         return eliminarRecursivo(anterior.siguiente, username); // RECURSIVIDAD
     }
 
-    // ── UTILIDADES ──────────────────────────────────────────────
 
-    /**
-     * Convierte la lista enlazada a ArrayList (para compatibilidad con el resto del código).
-     * Internamente usa recursividad.
-     */
     public ArrayList<Usuario> toArrayList() {
         ArrayList<Usuario> lista = new ArrayList<>();
         toArrayListRecursivo(cabeza, lista);
@@ -127,12 +99,12 @@ public class ListaUsuarios {
     }
 
     private void toArrayListRecursivo(NodoUsuario nodo, ArrayList<Usuario> lista) {
-        if (nodo == null) return;                   // caso base
+        if (nodo == null) return;               
         lista.add(nodo.usuario);
-        toArrayListRecursivo(nodo.siguiente, lista); // RECURSIVIDAD
+        toArrayListRecursivo(nodo.siguiente, lista); 
     }
 
-    /** Vacía la lista */
+
     public void limpiar() {
         cabeza  = null;
         tamanio = 0;

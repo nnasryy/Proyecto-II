@@ -298,6 +298,7 @@ public class VentanaPrincipal extends JFrame {
         });
         lblReg.addMouseListener(click(this::cargarVistaRegistro));
         revalidate();
+
         repaint();
     }
 
@@ -609,217 +610,226 @@ public class VentanaPrincipal extends JFrame {
         repaint();
     }
 
-    // ════════════════════════════════════════════════════════════
-    //  POST CARD
-    // ════════════════════════════════════════════════════════════
-    private JPanel buildPost(Publicacion p) {
-        final int POST_W = 600, IMG_H = 600;
-        JPanel post = new JPanel(new BorderLayout());
-        post.setBackground(C_WHITE);
-        post.setMaximumSize(new Dimension(POST_W, Integer.MAX_VALUE));
-        post.setPreferredSize(new Dimension(POST_W, IMG_H + 160));
-        post.setBorder(new LineBorder(C_BORDER, 1));
+ // ════════════════════════════════════════════════════════════
+//  POST CARD
+// ════════════════════════════════════════════════════════════
+private JPanel buildPost(Publicacion p) {
+    final int POST_W = 600;
+    JPanel post = new JPanel(new BorderLayout());
+    post.setBackground(C_WHITE);
+    post.setMaximumSize(new Dimension(POST_W, Integer.MAX_VALUE));
+    post.setBorder(new LineBorder(C_BORDER, 1));
 
-        // ── Header ──────────────────────────────────────────────
-        JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(C_WHITE);
-        header.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
+    // ── Header ──────────────────────────────────────────────
+    JPanel header = new JPanel(new BorderLayout());
+    header.setBackground(C_WHITE);
+    header.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
 
-        JPanel userInfo = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        userInfo.setBackground(C_WHITE);
-        userInfo.add(new JLabel(cargarFotoCircular(p.getAutor(), 32)));
-        JLabel lblUser = new JLabel(p.getAutor());
-        lblUser.setFont(F_BOLD);
-        lblUser.setForeground(C_TEXT);
-        lblUser.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        lblUser.addMouseListener(click(() -> cargarVistaPerfil(p.getAutor())));
-        userInfo.add(lblUser);
-        userInfo.add(badgeVerificado(p.getAutor()));
-        header.add(userInfo, BorderLayout.WEST);
+    JPanel userInfo = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+    userInfo.setBackground(C_WHITE);
+    userInfo.add(new JLabel(cargarFotoCircular(p.getAutor(), 32)));
+    JLabel lblUser = new JLabel(p.getAutor());
+    lblUser.setFont(F_BOLD);
+    lblUser.setForeground(C_TEXT);
+    lblUser.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    lblUser.addMouseListener(click(() -> cargarVistaPerfil(p.getAutor())));
+    userInfo.add(lblUser);
+    userInfo.add(badgeVerificado(p.getAutor()));
+    header.add(userInfo, BorderLayout.WEST);
 
-        // Botón seguir si es default no seguido
-        boolean esDefaultNoSeguido = sistema.getUsuarioActual() != null
-                && java.util.Arrays.asList(InicializadorCuentasDefault.USERNAMES_DEFAULT)
-                        .contains(p.getAutor())
-                && !p.getAutor().equals(sistema.getUsuarioActual().getUsername())
-                && !sistema.yaLoSigo(p.getAutor());
+    boolean esDefaultNoSeguido = sistema.getUsuarioActual() != null
+            && java.util.Arrays.asList(InicializadorCuentasDefault.USERNAMES_DEFAULT)
+                    .contains(p.getAutor())
+            && !p.getAutor().equals(sistema.getUsuarioActual().getUsername())
+            && !sistema.yaLoSigo(p.getAutor());
 
-        if (esDefaultNoSeguido) {
-            JPanel rightHeader = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 6));
-            rightHeader.setBackground(C_WHITE);
-            JLabel lblSug = new JLabel("Sugerencia");
-            lblSug.setFont(F_SMALL);
-            lblSug.setForeground(C_TEXT_LIGHT);
-            JButton btnSeguir = buildPrimaryBtn("Seguir");
-            btnSeguir.setPreferredSize(new Dimension(80, 28));
-            btnSeguir.setFont(new Font("Arial", Font.BOLD, 11));
-            btnSeguir.addActionListener(ev -> {
-                sistema.seguirUsuario(p.getAutor());
-                cargarVistaFeed();
-            });
-            rightHeader.add(lblSug);
-            rightHeader.add(btnSeguir);
-            header.add(rightHeader, BorderLayout.EAST);
+    if (esDefaultNoSeguido) {
+        JPanel rightHeader = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 6));
+        rightHeader.setBackground(C_WHITE);
+        JLabel lblSug = new JLabel("Sugerencia");
+        lblSug.setFont(F_SMALL);
+        lblSug.setForeground(C_TEXT_LIGHT);
+        JButton btnSeguir = buildPrimaryBtn("Seguir");
+        btnSeguir.setPreferredSize(new Dimension(80, 28));
+        btnSeguir.setFont(new Font("Arial", Font.BOLD, 11));
+        btnSeguir.addActionListener(ev -> {
+            sistema.seguirUsuario(p.getAutor());
+            cargarVistaFeed();
+        });
+        rightHeader.add(lblSug);
+        rightHeader.add(btnSeguir);
+        header.add(rightHeader, BorderLayout.EAST);
+    }
+
+    if (sistema.getUsuarioActual() != null
+            && p.getAutor().equals(sistema.getUsuarioActual().getUsername())) {
+        JButton btnOpts = new JButton();
+        if (iconsNormal.containsKey("More")) {
+            btnOpts.setIcon(iconsNormal.get("More"));
+        } else {
+            btnOpts.setText("...");
+            btnOpts.setFont(new Font("Arial", Font.BOLD, 14));
         }
-
-        // Botón "..." solo en mis posts
-        if (sistema.getUsuarioActual() != null
-                && p.getAutor().equals(sistema.getUsuarioActual().getUsername())) {
-            JButton btnOpts = new JButton();
-            if (iconsNormal.containsKey("More")) {
-                btnOpts.setIcon(iconsNormal.get("More"));
-            } else {
-                btnOpts.setText("...");
-                btnOpts.setFont(new Font("Arial", Font.BOLD, 14));
-            }
-            btnOpts.setBorderPainted(false);
-            btnOpts.setContentAreaFilled(false);
-            btnOpts.setFocusPainted(false);
-            btnOpts.setCursor(new Cursor(Cursor.HAND_CURSOR));
-            JPopupMenu menu = new JPopupMenu();
-            menu.setBorder(new LineBorder(C_BORDER, 1));
-            JMenuItem itemDel = new JMenuItem("Eliminar publicación");
-            itemDel.setFont(F_BOLD);
-            itemDel.setForeground(C_ERROR);
-            itemDel.addActionListener(ev -> {
-                boolean ok = InstaDialog.showConfirm(this, "¿Eliminar esta publicación?", "Eliminar", true);
-                if (ok) {
-                    sistema.eliminarPublicacion(p);
-                    if ("Profile".equals(vistaActual)) {
-                        cargarVistaPerfil(sistema.getUsuarioActual().getUsername());
-                    } else {
-                        cargarVistaFeed();
-                    }
+        btnOpts.setBorderPainted(false);
+        btnOpts.setContentAreaFilled(false);
+        btnOpts.setFocusPainted(false);
+        btnOpts.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        JPopupMenu menu = new JPopupMenu();
+        menu.setBorder(new LineBorder(C_BORDER, 1));
+        JMenuItem itemDel = new JMenuItem("Eliminar publicación");
+        itemDel.setFont(F_BOLD);
+        itemDel.setForeground(C_ERROR);
+        itemDel.addActionListener(ev -> {
+            boolean ok = InstaDialog.showConfirm(this, "¿Eliminar esta publicación?", "Eliminar", true);
+            if (ok) {
+                sistema.eliminarPublicacion(p);
+                if ("Profile".equals(vistaActual)) {
+                    cargarVistaPerfil(sistema.getUsuarioActual().getUsername());
+                } else {
+                    cargarVistaFeed();
                 }
-            });
-            menu.add(itemDel);
-            btnOpts.addActionListener(ev -> menu.show(btnOpts, 0, btnOpts.getHeight()));
-            header.add(btnOpts, BorderLayout.EAST);
-        }
-
-        // ── Imagen ───────────────────────────────────────────────
-        JLabel lblImg = new JLabel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                g.setColor(C_WHITE);
-                g.fillRect(0, 0, getWidth(), getHeight());
-                if (getIcon() != null) {
-                    getIcon().paintIcon(this, g, 0, 0);
-                }
-            }
-        };
-        lblImg.setPreferredSize(new Dimension(POST_W, IMG_H));
-        lblImg.setMinimumSize(new Dimension(POST_W, IMG_H));
-        lblImg.setMaximumSize(new Dimension(POST_W, IMG_H));
-        try {
-            if (p.getRutaImagen() != null && !p.getRutaImagen().isEmpty()
-                    && new File(p.getRutaImagen()).exists()) {
-                ImageIcon cr = crearImagenCropeada(p.getRutaImagen(), POST_W, IMG_H);
-                if (cr != null) {
-                    lblImg.setIcon(cr);
-                }
-            }
-        } catch (Exception ignored) {
-        }
-
-// ── Acciones con contadores ──────────────────────────────
-        JPanel acciones = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 8));
-        acciones.setBackground(C_WHITE);
-        acciones.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0));
-
-        boolean liked = sistema.yaDioLike(p.getAutor(), p.getFecha().toString());
-        JButton btnLike = iconBtn(liked);
-        JButton btnComment = iconBtn("Comment", false);
-        JButton btnShare = iconBtn("Share", false);
-
-        int totalLikes = sistema.getCantidadLikes(p.getAutor(), p.getFecha().toString());
-        int totalComs = sistema.getComentarios(p.getAutor(), p.getFecha().toString()).size();
-        int totalShares = sistema.getCantidadShares(p.getAutor(), p.getFecha().toString());
-
-        JLabel lblLikes = new JLabel(totalLikes > 0 ? String.valueOf(totalLikes) : "");
-        JLabel lblComs = new JLabel(totalComs > 0 ? String.valueOf(totalComs) : "");
-        JLabel lblShares = new JLabel(totalShares > 0 ? String.valueOf(totalShares) : "");
-        lblLikes.setFont(F_SMALL);
-        lblLikes.setForeground(C_TEXT_LIGHT);
-        lblComs.setFont(F_SMALL);
-        lblComs.setForeground(C_TEXT_LIGHT);
-        lblShares.setFont(F_SMALL);
-        lblShares.setForeground(C_TEXT_LIGHT);
-
-        btnLike.addActionListener(ev -> {
-            if (sistema.getUsuarioActual() == null) {
-                return;
-            }
-            boolean estado = sistema.toggleLike(p.getAutor(), p.getFecha().toString(), p.getRutaImagen());
-            actualizarLike(btnLike, estado);
-            int nuevos = sistema.getCantidadLikes(p.getAutor(), p.getFecha().toString());
-            lblLikes.setText(nuevos > 0 ? String.valueOf(nuevos) : "");
-            if (estado && !sistema.getUsuarioActual().getUsername().equals(p.getAutor())) {
-                clienteSocket.enviar(new red.EventoSocket(
-                        red.EventoSocket.Tipo.NUEVA_NOTIFICACION,
-                        sistema.getUsuarioActual().getUsername(), p.getAutor()));
             }
         });
+        menu.add(itemDel);
+        btnOpts.addActionListener(ev -> menu.show(btnOpts, 0, btnOpts.getHeight()));
+        header.add(btnOpts, BorderLayout.EAST);
+    }
 
-        btnComment.addActionListener(ev -> abrirComentarios(p));
+    // ── Imagen sin recorte — respeta aspect ratio ────────────
+    JLabel lblImg = new JLabel();
+    lblImg.setBackground(Color.WHITE);
+    lblImg.setOpaque(true);
+    lblImg.setHorizontalAlignment(SwingConstants.CENTER);
+    lblImg.setVerticalAlignment(SwingConstants.CENTER);
 
-        btnShare.addActionListener(ev -> {
-            if (sistema.getUsuarioActual() == null) {
-                return;
-            }
-            JPanel glass = mostrarOverlay();
-            String dest = InstaDialog.showInput(this, "Enviar por mensaje a...", "Nombre de usuario");
-            quitarOverlay(glass);
-            if (dest == null || dest.isEmpty()) {
-                return;
-            }
-            Usuario destU = sistema.buscarUsuario(dest);
-            if (destU == null) {
-                InstaDialog.showMessage(this, "El usuario @" + dest + " no existe.", true);
-                return;
-            }
-            if (destU.getEstadoCuenta() == EstadoCuenta.DESACTIVADO) {
-                InstaDialog.showMessage(this, "Esa cuenta no está disponible.", true);
-                return;
-            }
-            if (!sistema.puedeEnviarMensaje(dest)) {
-                InstaDialog.showMessage(this, "No puedes enviar mensajes a @" + dest
-                        + ".\nSu cuenta es privada — deben seguirse mutuamente.", true);
-                return;
-            }
-            if (!sistema.puedeCompartirPost(dest, p.getAutor())) {
-                InstaDialog.showMessage(this, "No puedes compartir este post con @" + dest
-                        + ".\nEl autor tiene cuenta privada.", true);
-                return;
-            }
-            sistema.compartirPost(dest, p.getAutor(), p.getRutaImagen(), p.getContenido());
-            // Actualizar contador de shares
-            int ns = sistema.getCantidadShares(p.getAutor(), p.getFecha().toString());
-            lblShares.setText(ns > 0 ? String.valueOf(ns) : "");
-            boolean irChat = InstaDialog.showConfirm(this,
-                    "Post enviado a @" + dest + " \n¿Abrir el chat?", "Abrir", false);
-            if (irChat) {
-                SwingUtilities.invokeLater(() -> cargarVistaInboxCon(dest));
-            }
-        });
+    int imgDisplayH = 600;
+    try {
+        if (p.getRutaImagen() != null && !p.getRutaImagen().isEmpty()
+                && new File(p.getRutaImagen()).exists()) {
+            BufferedImage src = javax.imageio.ImageIO.read(new File(p.getRutaImagen()));
+            if (src != null) {
+                BufferedImage flat = new BufferedImage(src.getWidth(), src.getHeight(), BufferedImage.TYPE_INT_RGB);
+                Graphics2D gf = flat.createGraphics();
+                gf.setColor(Color.WHITE);
+                gf.fillRect(0, 0, src.getWidth(), src.getHeight());
+                gf.drawImage(src, 0, 0, null);
+                gf.dispose();
 
-        acciones.add(btnLike);
-        acciones.add(lblLikes);
-        acciones.add(Box.createHorizontalStrut(8));
-        acciones.add(btnComment);
-        acciones.add(lblComs);
-        acciones.add(Box.createHorizontalStrut(8));
-        acciones.add(btnShare);
-        acciones.add(lblShares);
-        // ── Footer ───────────────────────────────────────────────
-        JPanel footer = new JPanel();
-        footer.setLayout(new BoxLayout(footer, BoxLayout.Y_AXIS));
-        footer.setBackground(C_WHITE);
-        footer.setBorder(BorderFactory.createEmptyBorder(0, 12, 10, 12));
-        footer.add(acciones);
+                double scale = (double) POST_W / flat.getWidth();
+                int newH = (int) (flat.getHeight() * scale);
+                newH = Math.max(400, Math.min(750, newH));
 
-// ── Caption ──────────────────────────────────────────
-        String contenido = p.getContenido();
+                BufferedImage scaled = new BufferedImage(POST_W, newH, BufferedImage.TYPE_INT_RGB);
+                Graphics2D gs = scaled.createGraphics();
+                gs.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                gs.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+                gs.setColor(Color.WHITE);
+                gs.fillRect(0, 0, POST_W, newH);
+                gs.drawImage(flat, 0, 0, POST_W, newH, null);
+                gs.dispose();
+
+                lblImg.setIcon(new ImageIcon(scaled));
+                imgDisplayH = newH;
+            }
+        }
+    } catch (Exception ignored) {}
+
+    lblImg.setPreferredSize(new Dimension(POST_W, imgDisplayH));
+    lblImg.setMinimumSize(new Dimension(POST_W, imgDisplayH));
+    lblImg.setMaximumSize(new Dimension(POST_W, imgDisplayH));
+
+    JPanel acciones = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 8));
+    acciones.setBackground(C_WHITE);
+    acciones.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0));
+
+    boolean liked = sistema.yaDioLike(p.getAutor(), p.getFecha().toString());
+    JButton btnLike = iconBtn(liked);
+    JButton btnComment = iconBtn("Comment", false);
+    JButton btnShare = iconBtn("Share", false);
+
+    int totalLikes = sistema.getCantidadLikes(p.getAutor(), p.getFecha().toString());
+    int totalComs = sistema.getComentarios(p.getAutor(), p.getFecha().toString()).size();
+    int totalShares = sistema.getCantidadShares(p.getAutor(), p.getFecha().toString());
+
+    JLabel lblLikes = new JLabel(totalLikes > 0 ? String.valueOf(totalLikes) : "");
+    JLabel lblComs = new JLabel(totalComs > 0 ? String.valueOf(totalComs) : "");
+    JLabel lblShares = new JLabel(totalShares > 0 ? String.valueOf(totalShares) : "");
+    lblLikes.setFont(F_SMALL);
+    lblLikes.setForeground(C_TEXT_LIGHT);
+    lblComs.setFont(F_SMALL);
+    lblComs.setForeground(C_TEXT_LIGHT);
+    lblShares.setFont(F_SMALL);
+    lblShares.setForeground(C_TEXT_LIGHT);
+
+    btnLike.addActionListener(ev -> {
+        if (sistema.getUsuarioActual() == null) return;
+        boolean estado = sistema.toggleLike(p.getAutor(), p.getFecha().toString(), p.getRutaImagen());
+        actualizarLike(btnLike, estado);
+        int nuevos = sistema.getCantidadLikes(p.getAutor(), p.getFecha().toString());
+        lblLikes.setText(nuevos > 0 ? String.valueOf(nuevos) : "");
+        if (estado && !sistema.getUsuarioActual().getUsername().equals(p.getAutor())) {
+            clienteSocket.enviar(new red.EventoSocket(
+                    red.EventoSocket.Tipo.NUEVA_NOTIFICACION,
+                    sistema.getUsuarioActual().getUsername(), p.getAutor()));
+        }
+    });
+
+    btnComment.addActionListener(ev -> abrirComentarios(p));
+
+    btnShare.addActionListener(ev -> {
+        if (sistema.getUsuarioActual() == null) return;
+        JPanel glass = mostrarOverlay();
+        String dest = InstaDialog.showInput(this, "Enviar por mensaje a...", "Nombre de usuario");
+        quitarOverlay(glass);
+        if (dest == null || dest.isEmpty()) return;
+        Usuario destU = sistema.buscarUsuario(dest);
+        if (destU == null) {
+            InstaDialog.showMessage(this, "El usuario @" + dest + " no existe.", true);
+            return;
+        }
+        if (destU.getEstadoCuenta() == EstadoCuenta.DESACTIVADO) {
+            InstaDialog.showMessage(this, "Esa cuenta no está disponible.", true);
+            return;
+        }
+        if (!sistema.puedeEnviarMensaje(dest)) {
+            InstaDialog.showMessage(this, "No puedes enviar mensajes a @" + dest
+                    + ".\nSu cuenta es privada — deben seguirse mutuamente.", true);
+            return;
+        }
+        if (!sistema.puedeCompartirPost(dest, p.getAutor())) {
+            InstaDialog.showMessage(this, "No puedes compartir este post con @" + dest
+                    + ".\nEl autor tiene cuenta privada.", true);
+            return;
+        }
+        sistema.compartirPost(dest, p.getAutor(), p.getRutaImagen(), p.getContenido());
+        int ns = sistema.getCantidadShares(p.getAutor(), p.getFecha().toString());
+        lblShares.setText(ns > 0 ? String.valueOf(ns) : "");
+        boolean irChat = InstaDialog.showConfirm(this,
+                "Post enviado a @" + dest + " \n¿Abrir el chat?", "Abrir", false);
+        if (irChat) {
+            SwingUtilities.invokeLater(() -> cargarVistaInboxCon(dest));
+        }
+    });
+
+    acciones.add(btnLike);
+    acciones.add(lblLikes);
+    acciones.add(Box.createHorizontalStrut(8));
+    acciones.add(btnComment);
+    acciones.add(lblComs);
+    acciones.add(Box.createHorizontalStrut(8));
+    acciones.add(btnShare);
+    acciones.add(lblShares);
+
+    // ── Footer ───────────────────────────────────────────────
+    JPanel footer = new JPanel();
+    footer.setLayout(new BoxLayout(footer, BoxLayout.Y_AXIS));
+    footer.setBackground(C_WHITE);
+    footer.setBorder(BorderFactory.createEmptyBorder(0, 12, 10, 12));
+    footer.add(acciones);
+
+    // ── Caption: solo si hay contenido ───────────────────────
+    String contenido = p.getContenido();
+    if (contenido != null && !contenido.isEmpty()) {
         JPanel captionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
         captionRow.setBackground(C_WHITE);
         captionRow.setMaximumSize(new Dimension(POST_W - 24, Integer.MAX_VALUE));
@@ -831,85 +841,73 @@ public class VentanaPrincipal extends JFrame {
         lblAutorCap.addMouseListener(click(() -> cargarVistaPerfil(p.getAutor())));
         captionRow.add(lblAutorCap);
 
-        if (contenido != null && !contenido.isEmpty()) {
-            JEditorPane edCaption = new JEditorPane("text/html", "");
-            edCaption.setEditable(false);
-            edCaption.setOpaque(false);
-            edCaption.setMaximumSize(new Dimension(POST_W - 100, Integer.MAX_VALUE));
-            edCaption.setText("<html><font face='Arial' size='3'>"
-                    + toHtml(contenido) + "</font></html>");
-            edCaption.addHyperlinkListener(e -> {
-                if (e.getEventType() == javax.swing.event.HyperlinkEvent.EventType.ACTIVATED) {
-                    String h = e.getDescription();
-                    if (h.startsWith("#")) {
-                        cargarVistaBusquedaHashtag(h);
-                    } else if (h.startsWith("@")) {
-                        cargarVistaPerfil(h.substring(1));
-                    }
-                }
-            });
-            captionRow.add(edCaption);
-        }
-// Siempre agregar la fila (con o sin descripción muestra el username)
+        JEditorPane edCaption = new JEditorPane("text/html", "");
+        edCaption.setEditable(false);
+        edCaption.setOpaque(false);
+        edCaption.setMaximumSize(new Dimension(POST_W - 100, Integer.MAX_VALUE));
+        edCaption.setText("<html><font face='Arial' size='3'>"
+                + toHtml(contenido) + "</font></html>");
+        edCaption.addHyperlinkListener(e -> {
+            if (e.getEventType() == javax.swing.event.HyperlinkEvent.EventType.ACTIVATED) {
+                String h = e.getDescription();
+                if (h.startsWith("#")) cargarVistaBusquedaHashtag(h);
+                else if (h.startsWith("@")) cargarVistaPerfil(h.substring(1));
+            }
+        });
+        captionRow.add(edCaption);
         footer.add(captionRow);
-        // Comentarios preview (max 2)
-        ArrayList<String> comentarios = sistema.getComentarios(p.getAutor(), p.getFecha().toString());
-        if (!comentarios.isEmpty()) {
-            int mostrar = Math.min(2, comentarios.size());
-            for (int i = 0; i < mostrar; i++) {
-                String c = comentarios.get(i);
-                String[] pts = c.split(":", 2);
-                String comUser = pts[0].trim();
-                String comText = pts.length > 1 ? pts[1].trim() : c;
-                // Saltar stickers en preview del feed
-                if (comText.startsWith("STICKER:")) {
-                    continue;
-                }
-                JPanel comRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
-                comRow.setBackground(C_WHITE);
-                JLabel lu = new JLabel(comUser);
-                lu.setFont(F_BOLD);
-                lu.setForeground(C_TEXT);
-                lu.setCursor(new Cursor(Cursor.HAND_CURSOR));
-                lu.addMouseListener(click(() -> cargarVistaPerfil(comUser)));
-                JLabel lt = new JLabel(comText.length() > 60 ? comText.substring(0, 57) + "…" : comText);
-                lt.setFont(F_REGULAR);
-                lt.setForeground(C_TEXT);
-                comRow.add(lu);
-                comRow.add(lt);
-                footer.add(comRow);
-            }
-            if (comentarios.size() > 2) {
-                JLabel verMas = new JLabel("Ver los " + comentarios.size() + " comentarios");
-                verMas.setFont(F_SMALL);
-                verMas.setForeground(C_TEXT_LIGHT);
-                verMas.setCursor(new Cursor(Cursor.HAND_CURSOR));
-                verMas.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
-                verMas.addMouseListener(click(() -> abrirComentarios(p)));
-                footer.add(verMas);
-            }
-        }
-
-        // Fecha
-        JPanel fechaRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        fechaRow.setBackground(C_WHITE);
-        JLabel lblFecha = new JLabel(p.getFecha() + "  " + p.getHoraFormateada());
-        lblFecha.setFont(F_SMALL);
-        lblFecha.setForeground(C_TEXT_LIGHT);
-        lblFecha.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
-        fechaRow.add(lblFecha);
-        footer.add(fechaRow);
-
-        post.add(header, BorderLayout.NORTH);
-        post.add(lblImg, BorderLayout.CENTER);
-        post.add(footer, BorderLayout.SOUTH);
-        return post;
     }
 
-    /**
-     * Crop centrado con fondo blanco garantizado — elimina el gris de canal
-     * alfa
-     */
+    // ── Comentarios preview (max 2) ───────────────────────────
+    ArrayList<String> comentarios = sistema.getComentarios(p.getAutor(), p.getFecha().toString());
+    if (!comentarios.isEmpty()) {
+        int mostrar = Math.min(2, comentarios.size());
+        for (int i = 0; i < mostrar; i++) {
+            String c = comentarios.get(i);
+            String[] pts = c.split(":", 2);
+            String comUser = pts[0].trim();
+            String comText = pts.length > 1 ? pts[1].trim() : c;
+            if (comText.startsWith("STICKER:")) continue;
+            JPanel comRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            comRow.setBackground(C_WHITE);
+            JLabel lu = new JLabel(comUser);
+            lu.setFont(F_BOLD);
+            lu.setForeground(C_TEXT);
+            lu.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            lu.addMouseListener(click(() -> cargarVistaPerfil(comUser)));
+            JLabel lt = new JLabel(comText.length() > 60 ? comText.substring(0, 57) + "…" : comText);
+            lt.setFont(F_REGULAR);
+            lt.setForeground(C_TEXT);
+            comRow.add(lu);
+            comRow.add(lt);
+            footer.add(comRow);
+        }
+        if (comentarios.size() > 2) {
+            JLabel verMas = new JLabel("Ver los " + comentarios.size() + " comentarios");
+            verMas.setFont(F_SMALL);
+            verMas.setForeground(C_TEXT_LIGHT);
+            verMas.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            verMas.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
+            verMas.addMouseListener(click(() -> abrirComentarios(p)));
+            footer.add(verMas);
+        }
+    }
+
+    // ── Fecha ─────────────────────────────────────────────────
+    JPanel fechaRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    fechaRow.setBackground(C_WHITE);
+    JLabel lblFecha = new JLabel(p.getFecha() + "  " + p.getHoraFormateada());
+    lblFecha.setFont(F_SMALL);
+    lblFecha.setForeground(C_TEXT_LIGHT);
+    lblFecha.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
+    fechaRow.add(lblFecha);
+    footer.add(fechaRow);
+
+    post.add(header, BorderLayout.NORTH);
+    post.add(lblImg, BorderLayout.CENTER);
+    post.add(footer, BorderLayout.SOUTH);
+    return post;
+}
     private ImageIcon crearImagenCropeada(String ruta, int targetW, int targetH) {
         try {
             BufferedImage src = javax.imageio.ImageIO.read(new File(ruta));
@@ -1256,7 +1254,7 @@ public class VentanaPrincipal extends JFrame {
                 return;
             }
             StringBuilder ht = new StringBuilder(), mn = new StringBuilder();
-            for (String w : texto.split(" ")) {
+            for (String w : (texto.isEmpty() ? new String[0] : texto.split(" "))) {
                 if (w.startsWith("#")) {
                     ht.append(w).append(" ");
                 } else if (w.startsWith("@")) {
@@ -2673,16 +2671,13 @@ public class VentanaPrincipal extends JFrame {
                     ta.setOpaque(false);
                     ta.setForeground(txtColor);
 
-                    // Calcular ancho real del texto
+                
                     FontMetrics fm = ta.getFontMetrics(F_REGULAR);
                     int textWidth = fm.stringWidth(texto);
-                    int padding = 28; // padding horizontal total
+                    int padding = 28;
 
-                    // Ancho de la burbuja: si el texto es corto cabe en 1 línea,
-                    // si es largo se expande hasta 220px máximo
                     int bubbleW = Math.max(60, Math.min(220, textWidth + padding));
 
-                    // Si el texto es muy corto (≤ 15 chars) forzar ancho mínimo ajustado
                     if (texto.length() <= 15) {
                         bubbleW = Math.min(textWidth + padding + 16, 220);
                     }
@@ -2690,7 +2685,6 @@ public class VentanaPrincipal extends JFrame {
                     ta.setSize(new Dimension(bubbleW, Integer.MAX_VALUE));
                     Dimension preferred = ta.getPreferredSize();
 
-                    // El wrapper toma el ancho calculado, no MAX
                     bubble.add(ta, BorderLayout.CENTER);
                     bubble.setPreferredSize(new Dimension(bubbleW + padding, preferred.height + 18));
                     bubble.setMaximumSize(new Dimension(bubbleW + padding, preferred.height + 18));
@@ -2777,12 +2771,12 @@ public class VentanaPrincipal extends JFrame {
         panel.revalidate();
         panel.repaint();
         SwingUtilities.invokeLater(() -> {
-            SwingUtilities.invokeLater(() -> { // doble invokeLater para esperar layout
+            SwingUtilities.invokeLater(() -> { 
                 if (vbar != null) {
                     if (atBottom) {
                         vbar.setValue(vbar.getMaximum());
                     }
-                    // Si atBottom es false, NO tocar el scroll — el usuario lo controla
+            
                 }
             });
         });
@@ -2893,7 +2887,7 @@ public class VentanaPrincipal extends JFrame {
             }
         }
 
-        // Después del bloque de likes, agrega:
+
         ArrayList<String> comentariosNotif = sistema.getNotificacionesComentarios();
         if (!comentariosNotif.isEmpty()) {
             hay = true;
@@ -2923,7 +2917,8 @@ public class VentanaPrincipal extends JFrame {
                 content.add(Box.createVerticalStrut(6));
             }
         }
-
+   
+        
         ArrayList<Publicacion> menciones = sistema.getMenciones();
         if (!menciones.isEmpty()) {
             hay = true;
@@ -3163,17 +3158,13 @@ public class VentanaPrincipal extends JFrame {
                 return;
             }
 
-            // Actualizar nombre y contraseña
             sistema.actualizarDatosUsuario(nom, pass);
 
-            // Actualizar edad
             sistema.actualizarEdad((int) spnEdad.getValue());
 
-            // Actualizar género
             char genero = cmbGenero.getSelectedIndex() == 0 ? 'M' : 'F';
             sistema.actualizarGenero(genero);
 
-            // Actualizar tipo de cuenta
             TipoCuenta tipo = cmbTipo.getSelectedIndex() == 0 ? TipoCuenta.PUBLICA : TipoCuenta.PRIVADA;
             sistema.actualizarTipoCuenta(tipo);
 
@@ -3349,9 +3340,6 @@ public class VentanaPrincipal extends JFrame {
         repaint();
     }
 
-    // ════════════════════════════════════════════════════════════
-    //  FOTOS CIRCULARES
-    // ════════════════════════════════════════════════════════════
     private ImageIcon cargarFotoCircular(String username, int d) {
         Usuario u = sistema.buscarUsuario(username);
         if (u != null) {
@@ -3401,9 +3389,6 @@ public class VentanaPrincipal extends JFrame {
         return new ImageIcon(img);
     }
 
-    // ════════════════════════════════════════════════════════════
-    //  HELPERS UI
-    // ════════════════════════════════════════════════════════════
     private JTextField buildField(String ph) {
         JTextField t = new JTextField();
         t.setBackground(C_FIELD);
@@ -3757,7 +3742,6 @@ public class VentanaPrincipal extends JFrame {
             return "";
         }
     }
-    // ── Glasspane helper ────────────────────────────────────────
 
     private JPanel mostrarOverlay() {
         JPanel glass = new JPanel() {
@@ -3785,7 +3769,6 @@ public class VentanaPrincipal extends JFrame {
         repaint();
     }
 
-    // Refresca posts del feed sin reconstruir toda la vista
     private void refrescarPostsEnFeed() {
         if (!"Home".equals(vistaActual)) {
             return;
@@ -3795,21 +3778,17 @@ public class VentanaPrincipal extends JFrame {
             return;
         }
         lastFeedCount = posts.size();
-        // Buscar el panel de contenido y agregar solo los nuevos posts al inicio
-        // En lugar de reconstruir todo, solo actualizamos el contador
-        // El feedTimer se encarga del refresco visual cada 3s
+
         if (feedTimer != null) {
             feedTimer.restart();
         }
     }
 
-// Refresca stats del perfil sin recargar la página
     private void refrescarPerfil() {
-        // Solo invalida cache para que el timer global lo detecte
+
         sistema.invalidarCachePublica();
     }
 
-// Refresca notificaciones sin navegar
     private void refrescarNotificaciones() {
         sistema.invalidarCachePublica();
     }
@@ -3824,7 +3803,7 @@ public class VentanaPrincipal extends JFrame {
                     SwingUtilities.invokeLater(() -> {
                         switch (evento.getTipo()) {
                             case NUEVO_POST:
-                                // Solo refrescar posts si estamos en Home, SIN navegar
+
                                 if ("Home".equals(vistaActual)) {
                                     refrescarPostsEnFeed();
                                 }
@@ -3832,12 +3811,12 @@ public class VentanaPrincipal extends JFrame {
                             case NUEVO_MENSAJE:
                                 if (sistema.getUsuarioActual().getUsername()
                                         .equals(evento.getUsuarioDestino())) {
-                                    // Actualizar punto azul instantáneo
+
                                     if (btnSidebarMensajes != null) {
                                         btnSidebarMensajes.putClientProperty("hasDot", true);
                                         btnSidebarMensajes.repaint();
                                     }
-                                    // Si estamos en mensajes, refrescar firma
+
                                     if ("Messages".equals(vistaActual)) {
                                         lastMessageSignature = "";
                                     }
@@ -3850,7 +3829,7 @@ public class VentanaPrincipal extends JFrame {
                                         btnSidebarNotificaciones.putClientProperty("hasDot", true);
                                         btnSidebarNotificaciones.repaint();
                                     }
-                                    // Si estamos en notificaciones, refrescar sin navegar
+
                                     if ("Notifications".equals(vistaActual)) {
                                         refrescarNotificaciones();
                                     }
@@ -3858,7 +3837,7 @@ public class VentanaPrincipal extends JFrame {
                                 break;
                             case CAMBIO_SEGUIDOR:
                             case ACTUALIZACION_PERFIL:
-                                // Solo refrescar si estamos viendo ese perfil
+
                                 if ("Profile".equals(vistaActual)
                                         && sistema.getUsuarioActual() != null) {
                                     refrescarPerfil();

@@ -22,18 +22,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Scanner;
 
-/**
- * Clase principal del sistema Instagram.
- *
- * Temas implementados: - Interfaces : implementa Interaccion y Mensajeria -
- * Lista enlazada : caché de usuarios en memoria (ListaUsuarios) - Nodos :
- * NodoUsuario como bloque de la lista enlazada - Recursividad : búsqueda
- * recursiva en ListaUsuarios - Herencia : PublicacionFoto extends Publicacion,
- * MensajeTexto/MensajeSticker extends Mensaje - Polimorfismo : toFileString()
- * sobreescrito en cada subclase - Archivos texto : lectura/escritura de
- * archivos .ins - Archivos binarios: backup serializado de publicaciones en
- * .bin - Try-catch : manejo de excepciones en todas las operaciones I/O
- */
 public class Sistema implements Interaccion, Mensajeria {
 
     private final String RUTA_RAIZ = "INSTA_RAIZ";
@@ -41,7 +29,6 @@ public class Sistema implements Interaccion, Mensajeria {
 
     private Usuario usuarioActual;
 
-    // ── LISTA ENLAZADA de usuarios en memoria ────────────────────
     private ListaUsuarios cacheUsuarios = new ListaUsuarios();
     private boolean cacheValida = false;
 
@@ -90,10 +77,6 @@ public class Sistema implements Interaccion, Mensajeria {
         cacheValida = false;
     }
 
-    /**
-     * Permite que la GUI fuerce recarga de la caché. Necesario tras reactivar
-     * una cuenta para que su contenido vuelva a ser visible inmediatamente.
-     */
     public void invalidarCachePublica() {
         invalidarCache();
     }
@@ -285,8 +268,10 @@ public class Sistema implements Interaccion, Mensajeria {
     private void crearEstructuraUsuario(String username) {
         String base = RUTA_RAIZ + "/" + username;
         new File(base).mkdir();
+
         String[] archivos = {"followers.ins", "following.ins", "insta.ins", "inbox.ins",
-            "stickers.ins", "solicitudes.ins", "likes.ins", "comments.ins", "notifications.ins", "likes_notif.ins"};
+            "stickers.ins", "solicitudes.ins", "likes.ins", "comments.ins",
+            "notifications.ins", "likes_notif.ins"};
         for (String a : archivos) {
             File f = new File(base + "/" + a);
             try {
@@ -297,13 +282,31 @@ public class Sistema implements Interaccion, Mensajeria {
                 e.printStackTrace();
             }
         }
+
         new File(base + "/imagenes").mkdir();
         new File(base + "/stickers_personales").mkdir();
-        new File(base + "/folders_personales").mkdir();
+
+        // folders_personales con todos los .ins incluyendo stickers.ins
+        String baseFolder = base + "/folders_personales";
+        new File(baseFolder).mkdir();
+
+        String[] archivosFolder = {"followers.ins", "following.ins", "insta.ins", "inbox.ins",
+            "stickers.ins", "solicitudes.ins", "likes.ins", "comments.ins",
+            "notifications.ins", "likes_notif.ins"};
+        for (String a : archivosFolder) {
+            File fp = new File(baseFolder + "/" + a);
+            try {
+                if (!fp.exists()) {
+                    fp.createNewFile();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     public boolean usernameDisponible(String username) {
-        // Un username NO está disponible si ya existe, activo O desactivado
+
         cargarCacheUsuarios();
         return !cacheUsuarios.contiene(username);
     }
@@ -1689,46 +1692,46 @@ public class Sistema implements Interaccion, Mensajeria {
                 RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/likes_notif.ins",
                 new ArrayList<>());
     }
-    
+
     public int getCantidadShares(String autorPost, String fechaPost) {
-    // Los shares son mensajes tipo SHARE en los inboxes de todos
-    // Contamos en el inbox del propio autor cuántos SHARE recibió con esa imagen
-    int count = 0;
-    File raiz = new File(RUTA_RAIZ);
-    String[] carpetas = raiz.list();
-    if (carpetas == null) return 0;
-    // Buscar publicación para obtener ruta imagen
-    String rutaImg = "";
-    for (Publicacion p : getPublicacionesDeUsuario(autorPost)) {
-        if (p.getFecha().toString().equals(fechaPost)) {
-            rutaImg = p.getRutaImagen() != null ? p.getRutaImagen() : "";
-            break;
+        // Los shares son mensajes tipo SHARE en los inboxes de todos
+        // Contamos en el inbox del propio autor cuántos SHARE recibió con esa imagen
+        int count = 0;
+        File raiz = new File(RUTA_RAIZ);
+        String[] carpetas = raiz.list();
+        if (carpetas == null) {
+            return 0;
         }
-    }
-    if (rutaImg.isEmpty()) return 0;
-    final String ri = rutaImg;
-    for (String carpeta : carpetas) {
-        File inbox = new File(RUTA_RAIZ + "/" + carpeta + "/inbox.ins");
-        if (!inbox.exists()) continue;
-        try (Scanner sc = new Scanner(inbox)) {
-            while (sc.hasNextLine()) {
-                String linea = sc.nextLine();
-                Mensaje m = Mensaje.fromFileString(linea);
-                if (m != null && m.getContenido() != null
-                        && m.getContenido().startsWith("SHARE|" + autorPost + "|" + ri)) {
-                    count++;
-                }
+        // Buscar publicación para obtener ruta imagen
+        String rutaImg = "";
+        for (Publicacion p : getPublicacionesDeUsuario(autorPost)) {
+            if (p.getFecha().toString().equals(fechaPost)) {
+                rutaImg = p.getRutaImagen() != null ? p.getRutaImagen() : "";
+                break;
             }
-        } catch (Exception ignored) {}
+        }
+        if (rutaImg.isEmpty()) {
+            return 0;
+        }
+        final String ri = rutaImg;
+        for (String carpeta : carpetas) {
+            File inbox = new File(RUTA_RAIZ + "/" + carpeta + "/inbox.ins");
+            if (!inbox.exists()) {
+                continue;
+            }
+            try (Scanner sc = new Scanner(inbox)) {
+                while (sc.hasNextLine()) {
+                    String linea = sc.nextLine();
+                    Mensaje m = Mensaje.fromFileString(linea);
+                    if (m != null && m.getContenido() != null
+                            && m.getContenido().startsWith("SHARE|" + autorPost + "|" + ri)) {
+                        count++;
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return count / 2; // cada share se guarda 2 veces (emisor + receptor)
     }
-    return count / 2; // cada share se guarda 2 veces (emisor + receptor)
+
 }
-    
-    
-}
-
-
-
-
-
-

@@ -21,7 +21,7 @@ public class MensajeTexto extends Mensaje {
 
     @Override
     public String toFileString() {
-        // FORMATO ACTUALIZADO: EMISOR|RECEPTOR|TEXTO|ESTADO|FECHA|HORA|CONTENIDO
+
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("HH:mm:ss");
         return emisor + "|" + receptor + "|TEXTO|" + estado + "|" + fecha.toString() + "|" + hora.format(dtf) + "|" + contenido;
     }

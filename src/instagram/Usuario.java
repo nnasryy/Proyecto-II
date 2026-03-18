@@ -74,7 +74,7 @@ public class Usuario {
     public void setEstadoCuenta(EstadoCuenta estadoCuenta) {
         this.estadoCuenta = estadoCuenta;
     }
-    // Agrega esto dentro de la clase Usuario.java
+
 public void setFotoPerfil(String fotoPerfil) {
     this.fotoPerfil = fotoPerfil;
 }
@@ -106,13 +106,6 @@ public void setFotoPerfil(String fotoPerfil) {
     public void setTipoCuenta(TipoCuenta tipoCuenta) {
         this.tipoCuenta = tipoCuenta;
     }
-
-
-
-
-
-
-
 
 
 }
