@@ -1689,4 +1689,46 @@ public class Sistema implements Interaccion, Mensajeria {
                 RUTA_RAIZ + "/" + usuarioActual.getUsername() + "/likes_notif.ins",
                 new ArrayList<>());
     }
+    
+    public int getCantidadShares(String autorPost, String fechaPost) {
+    // Los shares son mensajes tipo SHARE en los inboxes de todos
+    // Contamos en el inbox del propio autor cuántos SHARE recibió con esa imagen
+    int count = 0;
+    File raiz = new File(RUTA_RAIZ);
+    String[] carpetas = raiz.list();
+    if (carpetas == null) return 0;
+    // Buscar publicación para obtener ruta imagen
+    String rutaImg = "";
+    for (Publicacion p : getPublicacionesDeUsuario(autorPost)) {
+        if (p.getFecha().toString().equals(fechaPost)) {
+            rutaImg = p.getRutaImagen() != null ? p.getRutaImagen() : "";
+            break;
+        }
+    }
+    if (rutaImg.isEmpty()) return 0;
+    final String ri = rutaImg;
+    for (String carpeta : carpetas) {
+        File inbox = new File(RUTA_RAIZ + "/" + carpeta + "/inbox.ins");
+        if (!inbox.exists()) continue;
+        try (Scanner sc = new Scanner(inbox)) {
+            while (sc.hasNextLine()) {
+                String linea = sc.nextLine();
+                Mensaje m = Mensaje.fromFileString(linea);
+                if (m != null && m.getContenido() != null
+                        && m.getContenido().startsWith("SHARE|" + autorPost + "|" + ri)) {
+                    count++;
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+    return count / 2; // cada share se guarda 2 veces (emisor + receptor)
 }
+    
+    
+}
+
+
+
+
+
+
